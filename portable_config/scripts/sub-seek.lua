@@ -1,4 +1,6 @@
 -- sub-seek.lua
+-- Source: https://github.com/v-amorim/mpv
+--
 -- Fullscreen, clickable list of every subtitle line (with timestamps).
 -- Click a line (or select with Up/Down + Enter) to seek to it; the list closes.
 -- Behaves like the built-in sub-seek keybind, but lets you pick any line.

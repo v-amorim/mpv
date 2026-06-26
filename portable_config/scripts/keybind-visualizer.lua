@@ -1,4 +1,6 @@
 -- keybind-visualizer.lua
+-- Source: https://github.com/v-amorim/mpv
+--
 -- An interactive on-screen keyboard for mpv. Toggle it, then move the mouse
 -- over any key to see its bindings.
 --

@@ -1,4 +1,5 @@
 {
+  "_credit": "https://github.com/v-amorim/mpv",
   "_comment": "Row-based layout. Keys carry no x: the code flows them left-to-right within each row, summing widths (default w=1). Each row has a y (vertical position in key units) and optional x (start, default 0). Use {\"gap\": n} to insert horizontal space. h>1 makes a tall key (e.g. ISO Enter).",
   "shared": {
     "rows": [
