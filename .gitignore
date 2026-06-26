@@ -1,0 +1,12 @@
+# Shader cache
+cache/
+
+# Shaders (large, not tracked - see shaders_list.txt)
+*.glsl
+*.hook
+
+# Logs
+*.log
+
+# Tokens / secrets
+anilistToken*.txt

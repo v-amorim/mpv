@@ -1,0 +1,682 @@
+-- sub-seek.lua
+-- Fullscreen, clickable list of every subtitle line (with timestamps).
+-- Click a line (or select with Up/Down + Enter) to seek to it; the list closes.
+-- Behaves like the built-in sub-seek keybind, but lets you pick any line.
+--
+-- How it works: mpv exposes no API for "all subtitle lines", so the currently
+-- selected sub track is extracted to a temporary .srt with ffmpeg and parsed.
+-- ASS/embedded subs are converted to plain timed text by ffmpeg.
+--
+-- Bind it in input.conf, e.g.:   F7   script-binding   sub-seek-list
+
+local mp = require("mp")
+local utils = require("mp.utils")
+
+----------------------------------------------------------------------
+-- Options
+----------------------------------------------------------------------
+-- ffmpeg used to dump the selected subtitle track. Falls back to PATH.
+local FFMPEG = [[C:\Program Files (x86)\SVP 4\utils\ffmpeg.exe]]
+local WHEEL_ROWS = 3 -- rows scrolled per mouse wheel notch
+
+----------------------------------------------------------------------
+-- Colors (Moonlight theme, written as normal #RRGGBB hex) and helpers
+----------------------------------------------------------------------
+-- ASS wants colors in &HBBGGRR& byte order, so to_ass() reverses the byte
+-- pairs once at load time; the rest of the script reads ready-to-use values.
+-- Shared palette with keybind-visualizer.lua.
+local function to_ass(rgb)
+	return rgb:sub(5, 6) .. rgb:sub(3, 4) .. rgb:sub(1, 2)
+end
+
+local C = {}
+for name, rgb in pairs({
+	bg = "0d0e17", -- #0d0e17  full-screen dim behind the list
+	panel = "191726", -- #191726  list panel background
+	border = "3c466f", -- #3c466f  list panel border
+	text = "f8eaf8", -- #f8eaf8  row text + "Subtitles" header
+	dim = "aea4bf", -- #aea4bf  dimmed text (line count + footer hint)
+	time = "5dabf3", -- #5dabf3  timestamp column
+	cur = "7386d0", -- #7386d0  current line (under the playhead)
+	sel_bg = "2d3654", -- #2d3654  selected row background
+	hover_bg = "282e46", -- #282e46  hovered row background
+	scroll_trk = "282e46", -- #282e46  scrollbar track
+	scroll_thb = "5dabf3", -- #5dabf3  scrollbar thumb
+}) do
+	C[name] = to_ass(rgb)
+end
+
+local function round(x)
+	return math.floor(x + 0.5)
+end
+
+local function rect_draw(w, h)
+	return string.format("m 0 0 l %d 0 %d %d 0 %d", w, w, h, h)
+end
+
+-- escape user text so braces / backslashes are not read as ASS overrides
+local function esc(s)
+	s = s:gsub("\\", "\\\xE2\x81\xA0")
+	s = s:gsub("{", "\\{"):gsub("}", "\\}")
+	return s
+end
+
+-- first n unicode codepoints of s, with an ellipsis if truncated
+local function utf8_sub(s, n)
+	local i, count, len = 1, 0, #s
+	while i <= len and count < n do
+		local c = s:byte(i)
+		local step = 1
+		if c >= 0xF0 then
+			step = 4
+		elseif c >= 0xE0 then
+			step = 3
+		elseif c >= 0xC0 then
+			step = 2
+		end
+		i = i + step
+		count = count + 1
+	end
+	if i <= len then
+		return s:sub(1, i - 1) .. "\xE2\x80\xA6"
+	end
+	return s
+end
+
+local function fmt_time(t)
+	if t < 0 then
+		t = 0
+	end
+	local h = math.floor(t / 3600)
+	local m = math.floor((t % 3600) / 60)
+	local s = math.floor(t % 60)
+	if h > 0 then
+		return string.format("%d:%02d:%02d", h, m, s)
+	end
+	return string.format("%02d:%02d", m, s)
+end
+
+----------------------------------------------------------------------
+-- State
+----------------------------------------------------------------------
+local active = false
+local overlay = nil
+local subs = {} -- { {time=seconds, text=string}, ... }
+local sel = 1 -- highlighted index
+local scroll = 1 -- index of the first visible row
+local cur = nil -- index of the line under the playhead
+local hovered = nil -- index under the mouse
+local mouse_x, mouse_y = nil, nil
+local geom = nil
+local saved_autohide = nil
+local loading = false
+
+----------------------------------------------------------------------
+-- Subtitle text cleanup + SRT parsing
+----------------------------------------------------------------------
+local function clean_text(s)
+	s = s:gsub("\\N", " "):gsub("\\n", " ")
+	s = s:gsub("{[^}]*}", "") -- ASS override blocks
+	s = s:gsub("<[^>]->", "") -- html-ish tags (<i>, <b>, ...)
+	s = s:gsub("%s+", " ")
+	s = s:gsub("^%s+", ""):gsub("%s+$", "")
+	return s
+end
+
+local function parse_srt(data)
+	data = data:gsub("\r", "")
+	data = data:gsub("^\xEF\xBB\xBF", "") -- strip UTF-8 BOM
+	local out = {}
+	local cur_start, cur_text
+	local function flush()
+		if cur_start then
+			local t = clean_text(cur_text or "")
+			if t ~= "" then
+				out[#out + 1] = { time = cur_start, text = t }
+			end
+		end
+		cur_start, cur_text = nil, nil
+	end
+	for line in (data .. "\n"):gmatch("(.-)\n") do
+		local sh, sm, ss, ms = line:match("^%s*(%d+):(%d+):(%d+)[,%.](%d+)%s*%-%->")
+		if sh then
+			cur_start = sh * 3600 + sm * 60 + ss + ms / 1000
+			cur_text = ""
+		elseif cur_start then
+			if line:match("^%s*$") then
+				flush()
+			else
+				cur_text = (cur_text == "" and line) or (cur_text .. " " .. line)
+			end
+		end
+		-- numeric index lines (before a timestamp) fall through and are ignored
+	end
+	flush()
+	return out
+end
+
+local function read_file(path)
+	local f = io.open(path, "rb")
+	if not f then
+		return nil
+	end
+	local data = f:read("*all")
+	f:close()
+	return data
+end
+
+----------------------------------------------------------------------
+-- Locate + extract the selected subtitle track
+----------------------------------------------------------------------
+local function selected_sub_track()
+	local n = mp.get_property_number("track-list/count", 0)
+	for i = 0, n - 1 do
+		local p = string.format("track-list/%d/", i)
+		if mp.get_property(p .. "type") == "sub" and mp.get_property(p .. "selected") == "yes" then
+			return {
+				external = mp.get_property(p .. "external") == "yes",
+				ext_file = mp.get_property(p .. "external-filename"),
+				ff_index = mp.get_property_number(p .. "ff-index"),
+			}
+		end
+	end
+	return nil
+end
+
+local function ffmpeg_bin()
+	local fi = utils.file_info and utils.file_info(FFMPEG)
+	if fi and fi.is_file then
+		return FFMPEG
+	end
+	return "ffmpeg"
+end
+
+local function temp_srt()
+	local dir = os.getenv("TEMP") or os.getenv("TMP") or "."
+	return (dir .. "/mpv_sub_seek.srt"):gsub("\\", "/")
+end
+
+-- extract the selected track to a temp .srt, parse it, then call done(subs)
+local function load_subs(done)
+	local track = selected_sub_track()
+	if not track then
+		mp.osd_message("sub-seek: no subtitle selected", 2)
+		return
+	end
+
+	local out = temp_srt()
+	local args
+	if track.external and track.ext_file then
+		args = { ffmpeg_bin(), "-y", "-hide_banner", "-loglevel", "error", "-i", track.ext_file, out }
+	else
+		local video = mp.get_property("working-directory") .. "/" .. mp.get_property("filename")
+		if not track.ff_index then
+			mp.osd_message("sub-seek: cannot locate subtitle stream", 2)
+			return
+		end
+		args = {
+			ffmpeg_bin(),
+			"-y",
+			"-hide_banner",
+			"-loglevel",
+			"error",
+			"-i",
+			video,
+			"-map",
+			string.format("0:%d", track.ff_index),
+			out,
+		}
+	end
+
+	loading = true
+	mp.osd_message("sub-seek: loading subtitles...", 30)
+	mp.command_native_async(
+		{ name = "subprocess", playback_only = false, capture_stdout = true, args = args },
+		function(success, res)
+			loading = false
+			if not (success and res and res.status == 0) then
+				mp.osd_message("sub-seek: ffmpeg failed to read subtitles", 3)
+				return
+			end
+			local data = read_file(out)
+			local parsed = data and parse_srt(data) or {}
+			if #parsed == 0 then
+				mp.osd_message("sub-seek: no lines found in subtitle", 3)
+				return
+			end
+			mp.osd_message("", 0)
+			done(parsed)
+		end
+	)
+end
+
+----------------------------------------------------------------------
+-- Geometry
+----------------------------------------------------------------------
+local function compute_geom()
+	-- osd-dimensions is the space ASS overlays render in and mouse-pos uses,
+	-- so layout and hit-testing stay aligned in fullscreen / HiDPI.
+	local dim = mp.get_property_native("osd-dimensions")
+	if not dim or not dim.w or dim.w == 0 then
+		return nil
+	end
+	local w, h = dim.w, dim.h
+	local mx = round(w * 0.06)
+	local my = round(h * 0.05)
+	local header_h = round(h * 0.06)
+	local footer_h = round(h * 0.04)
+	local list_top = my + header_h + round(h * 0.012)
+	local list_bottom = h - my - footer_h
+	local row_h = math.max(16, round(h * 0.034))
+	local fs = math.max(10, round(row_h * 0.6))
+	local visible = math.max(1, math.floor((list_bottom - list_top) / row_h))
+	local inner_x = mx + round(w * 0.012)
+	local inner_w = w - 2 * inner_x
+	local time_col_w = round(fs * 4.6)
+	local max_chars = math.max(10, math.floor((inner_w - time_col_w) / (fs * 0.52)))
+	return {
+		w = w,
+		h = h,
+		mx = mx,
+		my = my,
+		header_y = my,
+		header_h = header_h,
+		footer_y = h - my - footer_h,
+		list_top = list_top,
+		list_bottom = list_top + visible * row_h,
+		row_h = row_h,
+		fs = fs,
+		visible = visible,
+		inner_x = inner_x,
+		inner_w = inner_w,
+		time_col_w = time_col_w,
+		max_chars = max_chars,
+	}
+end
+
+local function max_scroll()
+	if not geom then
+		return 1
+	end
+	return math.max(1, #subs - geom.visible + 1)
+end
+
+local function clamp_scroll()
+	if scroll < 1 then
+		scroll = 1
+	elseif scroll > max_scroll() then
+		scroll = max_scroll()
+	end
+end
+
+local function ensure_visible()
+	if not geom then
+		return
+	end
+	if sel < scroll then
+		scroll = sel
+	elseif sel > scroll + geom.visible - 1 then
+		scroll = sel - geom.visible + 1
+	end
+	clamp_scroll()
+end
+
+local function cur_index(pos)
+	if not pos then
+		return nil
+	end
+	local idx = nil
+	for i = 1, #subs do
+		if subs[i].time <= pos + 0.05 then
+			idx = i
+		else
+			break
+		end
+	end
+	return idx
+end
+
+-- index of the subtitle row under (mx,my), or nil
+local function row_at(px, py)
+	if not geom then
+		return nil
+	end
+	if py < geom.list_top or py >= geom.list_bottom then
+		return nil
+	end
+	if px < geom.mx or px > geom.w - geom.mx then
+		return nil
+	end
+	local i = scroll + math.floor((py - geom.list_top) / geom.row_h)
+	if i >= 1 and i <= #subs then
+		return i
+	end
+	return nil
+end
+
+----------------------------------------------------------------------
+-- Rendering
+----------------------------------------------------------------------
+local function render()
+	if not active or not overlay then
+		return
+	end
+	geom = compute_geom()
+	if not geom then
+		return
+	end
+	local g = geom
+	clamp_scroll()
+	overlay.res_x = g.w
+	overlay.res_y = g.h
+
+	local a = {}
+
+	-- full-screen dim
+	a[#a + 1] =
+		string.format("{\\an7\\pos(0,0)\\bord0\\shad0\\1c&H%s&\\1a&H30&\\p1}%s{\\p0}", C.bg, rect_draw(g.w, g.h))
+	-- list panel background
+	a[#a + 1] = string.format(
+		"{\\an7\\pos(%d,%d)\\bord2\\shad0\\3c&H%s&\\1c&H%s&\\1a&H18&\\p1}%s{\\p0}",
+		g.mx,
+		g.list_top - round(g.row_h * 0.3),
+		C.border,
+		C.panel,
+		rect_draw(g.w - 2 * g.mx, (g.list_bottom - g.list_top) + round(g.row_h * 0.6))
+	)
+
+	-- header
+	local hfs = math.max(12, round(g.header_h * 0.55))
+	a[#a + 1] = string.format(
+		"{\\an4\\pos(%d,%d)\\fs%d\\bord0\\shad0\\b1\\1c&H%s&}Subtitles{\\b0\\fs%d\\1c&H%s&}   %d lines",
+		g.inner_x,
+		g.header_y + round(g.header_h / 2),
+		hfs,
+		C.text,
+		round(hfs * 0.7),
+		C.dim,
+		#subs
+	)
+
+	-- rows
+	local first = scroll
+	local last = math.min(#subs, scroll + g.visible - 1)
+	for i = first, last do
+		local ry = g.list_top + (i - first) * g.row_h
+		local is_sel = (i == sel)
+		local is_cur = (i == cur)
+		if is_sel or i == hovered then
+			a[#a + 1] = string.format(
+				"{\\an7\\pos(%d,%d)\\bord0\\shad0\\1c&H%s&\\1a&H20&\\p1}%s{\\p0}",
+				g.mx + round(g.row_h * 0.15),
+				ry,
+				is_sel and C.sel_bg or C.hover_bg,
+				rect_draw(g.w - 2 * g.mx - round(g.row_h * 0.3), g.row_h)
+			)
+		end
+		local cy = ry + round(g.row_h / 2)
+		-- timestamp
+		a[#a + 1] = string.format(
+			"{\\an4\\pos(%d,%d)\\fs%d\\bord0\\shad0\\1c&H%s&}%s",
+			g.inner_x,
+			cy,
+			g.fs,
+			is_cur and C.cur or C.time,
+			fmt_time(subs[i].time)
+		)
+		-- text
+		a[#a + 1] = string.format(
+			"{\\an4\\pos(%d,%d)\\fs%d\\bord0\\shad0\\1c&H%s&}%s",
+			g.inner_x + g.time_col_w,
+			cy,
+			g.fs,
+			is_cur and C.cur or C.text,
+			esc(utf8_sub(subs[i].text, g.max_chars))
+		)
+	end
+
+	-- scrollbar (only when the list overflows)
+	if #subs > g.visible then
+		local trk_x = g.w - g.mx + round(g.mx * 0.25)
+		local trk_y = g.list_top
+		local trk_h = g.list_bottom - g.list_top
+		local tw = math.max(4, round(g.mx * 0.18))
+		a[#a + 1] = string.format(
+			"{\\an7\\pos(%d,%d)\\bord0\\shad0\\1c&H%s&\\1a&H40&\\p1}%s{\\p0}",
+			trk_x,
+			trk_y,
+			C.scroll_trk,
+			rect_draw(tw, trk_h)
+		)
+		local thb_h = math.max(round(g.row_h), round(trk_h * g.visible / #subs))
+		local thb_y = trk_y + round((trk_h - thb_h) * (scroll - 1) / math.max(1, max_scroll() - 1))
+		a[#a + 1] = string.format(
+			"{\\an7\\pos(%d,%d)\\bord0\\shad0\\1c&H%s&\\1a&H10&\\p1}%s{\\p0}",
+			trk_x,
+			thb_y,
+			C.scroll_thb,
+			rect_draw(tw, thb_h)
+		)
+	end
+
+	-- footer hint
+	a[#a + 1] = string.format(
+		"{\\an4\\pos(%d,%d)\\fs%d\\bord0\\shad0\\1c&H%s&}Click a line to jump   "
+			.. "{\\1c&H%s&}Up/Down{\\1c&H%s&}+{\\1c&H%s&}Enter{\\1c&H%s&}   "
+			.. "Wheel to scroll   {\\1c&H%s&}ESC{\\1c&H%s&} to close",
+		g.inner_x,
+		g.footer_y + round((g.h - g.footer_y - g.my) / 2),
+		math.max(11, round(g.row_h * 0.55)),
+		C.dim,
+		C.time,
+		C.dim,
+		C.time,
+		C.dim,
+		C.time,
+		C.dim
+	)
+
+	overlay.data = table.concat(a, "\n")
+	overlay:update()
+end
+
+----------------------------------------------------------------------
+-- Actions
+----------------------------------------------------------------------
+local function seek_to(i)
+	if subs[i] then
+		mp.commandv("seek", string.format("%.3f", subs[i].time), "absolute+exact")
+	end
+end
+
+local close -- fwd decl
+
+local function activate(i)
+	if subs[i] then
+		seek_to(i)
+		close()
+	end
+end
+
+local function on_mouse(_, val)
+	if not active then
+		return
+	end
+	local mxp, myp
+	if type(val) == "table" then
+		mxp, myp = val.x, val.y
+	else
+		local pos = mp.get_property_native("mouse-pos")
+		if pos then
+			mxp, myp = pos.x, pos.y
+		end
+	end
+	if not mxp then
+		return
+	end
+	mouse_x, mouse_y = mxp, myp
+	hovered = row_at(mxp, myp)
+	render()
+end
+
+local function on_resize()
+	if active then
+		render()
+	end
+end
+
+local function on_time(_, pos)
+	if not active then
+		return
+	end
+	local ni = cur_index(pos)
+	if ni ~= cur then
+		cur = ni
+		render()
+	end
+end
+
+local function on_click()
+	if not active then
+		return
+	end
+	local pos = mp.get_property_native("mouse-pos")
+	if not pos then
+		return
+	end
+	local i = row_at(pos.x, pos.y)
+	if i then
+		activate(i)
+	end
+end
+
+local function move(delta)
+	if #subs == 0 then
+		return
+	end
+	sel = math.max(1, math.min(#subs, sel + delta))
+	ensure_visible()
+	render()
+end
+
+local function scroll_by(delta)
+	scroll = scroll + delta
+	clamp_scroll()
+	-- keep hover in sync after a wheel scroll
+	if mouse_x then
+		hovered = row_at(mouse_x, mouse_y)
+	end
+	render()
+end
+
+----------------------------------------------------------------------
+-- Open / close
+----------------------------------------------------------------------
+close = function()
+	if not active then
+		return
+	end
+	active = false
+	hovered = nil
+	mp.unobserve_property(on_mouse)
+	mp.unobserve_property(on_resize)
+	mp.unobserve_property(on_time)
+	mp.remove_key_binding("sub-seek-esc")
+	mp.remove_key_binding("sub-seek-click")
+	mp.remove_key_binding("sub-seek-up")
+	mp.remove_key_binding("sub-seek-down")
+	mp.remove_key_binding("sub-seek-pgup")
+	mp.remove_key_binding("sub-seek-pgdn")
+	mp.remove_key_binding("sub-seek-enter")
+	mp.remove_key_binding("sub-seek-wup")
+	mp.remove_key_binding("sub-seek-wdn")
+	mp.remove_key_binding("sub-seek-home")
+	mp.remove_key_binding("sub-seek-end")
+	if saved_autohide ~= nil then
+		mp.set_property("cursor-autohide", saved_autohide)
+		saved_autohide = nil
+	end
+	if overlay then
+		overlay:remove()
+	end
+end
+
+local function open_with(parsed)
+	subs = parsed
+	if not overlay then
+		overlay = mp.create_osd_overlay("ass-events")
+	end
+	active = true
+	hovered = nil
+	geom = compute_geom()
+
+	cur = cur_index(mp.get_property_number("time-pos"))
+	sel = cur or 1
+	scroll = sel - math.floor((geom and geom.visible or 10) / 2)
+	clamp_scroll()
+
+	local pos = mp.get_property_native("mouse-pos")
+	if pos then
+		mouse_x, mouse_y = pos.x, pos.y
+	end
+	saved_autohide = mp.get_property("cursor-autohide")
+	mp.set_property("cursor-autohide", "no")
+
+	mp.observe_property("mouse-pos", "native", on_mouse)
+	mp.observe_property("osd-dimensions", "native", on_resize)
+	mp.observe_property("time-pos", "number", on_time)
+
+	mp.add_forced_key_binding("ESC", "sub-seek-esc", close)
+	mp.add_forced_key_binding("MBTN_LEFT", "sub-seek-click", on_click)
+	mp.add_forced_key_binding("UP", "sub-seek-up", function()
+		move(-1)
+	end, { repeatable = true })
+	mp.add_forced_key_binding("DOWN", "sub-seek-down", function()
+		move(1)
+	end, { repeatable = true })
+	mp.add_forced_key_binding("PGUP", "sub-seek-pgup", function()
+		move(-(geom and geom.visible or 10))
+	end, { repeatable = true })
+	mp.add_forced_key_binding("PGDWN", "sub-seek-pgdn", function()
+		move(geom and geom.visible or 10)
+	end, { repeatable = true })
+	mp.add_forced_key_binding("HOME", "sub-seek-home", function()
+		sel = 1
+		ensure_visible()
+		render()
+	end)
+	mp.add_forced_key_binding("END", "sub-seek-end", function()
+		sel = #subs
+		ensure_visible()
+		render()
+	end)
+	mp.add_forced_key_binding("ENTER", "sub-seek-enter", function()
+		activate(sel)
+	end)
+	mp.add_forced_key_binding("WHEEL_UP", "sub-seek-wup", function()
+		scroll_by(-WHEEL_ROWS)
+	end)
+	mp.add_forced_key_binding("WHEEL_DOWN", "sub-seek-wdn", function()
+		scroll_by(WHEEL_ROWS)
+	end)
+
+	render()
+end
+
+local function toggle()
+	if active then
+		close()
+		return
+	end
+	if loading then
+		return
+	end
+	load_subs(open_with)
+end
+
+mp.add_key_binding(nil, "sub-seek-list", toggle)
+mp.register_event("shutdown", function()
+	if overlay then
+		overlay:remove()
+	end
+end)

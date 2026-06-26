@@ -1,0 +1,484 @@
+{
+  "_comment": "Row-based layout. Keys carry no x: the code flows them left-to-right within each row, summing widths (default w=1). Each row has a y (vertical position in key units) and optional x (start, default 0). Use {\"gap\": n} to insert horizontal space. h>1 makes a tall key (e.g. ISO Enter).",
+  "shared": {
+    "rows": [
+      {
+        "y": 0,
+        "keys": [
+          { "id": "Escape", "label": "ESC", "mpv": "ESC" },
+          { "gap": 1 },
+          { "id": "F1", "label": "F1", "mpv": "F1" },
+          { "id": "F2", "label": "F2", "mpv": "F2" },
+          { "id": "F3", "label": "F3", "mpv": "F3" },
+          { "id": "F4", "label": "F4", "mpv": "F4" },
+          { "gap": 0.5 },
+          { "id": "F5", "label": "F5", "mpv": "F5" },
+          { "id": "F6", "label": "F6", "mpv": "F6" },
+          { "id": "F7", "label": "F7", "mpv": "F7" },
+          { "id": "F8", "label": "F8", "mpv": "F8" },
+          { "gap": 0.5 },
+          { "id": "F9", "label": "F9", "mpv": "F9" },
+          { "id": "F10", "label": "F10", "mpv": "F10" },
+          { "id": "F11", "label": "F11", "mpv": "F11" },
+          { "id": "F12", "label": "F12", "mpv": "F12" }
+        ]
+      },
+      {
+        "y": 0,
+        "x": 15.5,
+        "keys": [
+          { "id": "PrintScreen", "label": "PRT", "mpv": "PRINT" },
+          { "id": "ScrollLock", "label": "SCR" },
+          { "id": "Pause", "label": "PAUSE", "mpv": "PAUSE" }
+        ]
+      },
+      {
+        "y": 1.2,
+        "x": 15.5,
+        "keys": [
+          { "id": "Insert", "label": "INS", "mpv": "INS" },
+          { "id": "Home", "label": "HOME", "mpv": "HOME" },
+          { "id": "PageUp", "label": "PGUP", "mpv": "PGUP" }
+        ]
+      },
+      {
+        "y": 2.2,
+        "x": 15.5,
+        "keys": [
+          { "id": "Delete", "label": "DEL", "mpv": "DEL" },
+          { "id": "End", "label": "END", "mpv": "END" },
+          { "id": "PageDown", "label": "PGDN", "mpv": "PGDWN" }
+        ]
+      },
+      { "y": 4.2, "x": 16.5, "keys": [ { "id": "ArrowUp", "label": "▲", "mpv": "UP" } ] },
+      {
+        "y": 5.2,
+        "x": 15.5,
+        "keys": [
+          { "id": "ArrowLeft", "label": "◀", "mpv": "LEFT" },
+          { "id": "ArrowDown", "label": "▼", "mpv": "DOWN" },
+          { "id": "ArrowRight", "label": "▶", "mpv": "RIGHT" }
+        ]
+      },
+      {
+        "y": 1.2,
+        "x": 19,
+        "keys": [
+          { "id": "NumLock", "label": "NUM" },
+          { "id": "NumpadDivide", "label": "/", "mpv": "KP_DIVIDE" },
+          { "id": "NumpadMultiply", "label": "*", "mpv": "KP_MULTIPLY" },
+          { "id": "NumpadSubtract", "label": "-", "mpv": "KP_SUBTRACT" }
+        ]
+      },
+      {
+        "y": 2.2,
+        "x": 19,
+        "keys": [
+          { "id": "Numpad7", "label": "7", "mpv": "KP7" },
+          { "id": "Numpad8", "label": "8", "mpv": "KP8" },
+          { "id": "Numpad9", "label": "9", "mpv": "KP9" },
+          { "id": "NumpadAdd", "label": "+", "mpv": "KP_ADD", "h": 2 }
+        ]
+      },
+      {
+        "y": 3.2,
+        "x": 19,
+        "keys": [
+          { "id": "Numpad4", "label": "4", "mpv": "KP4" },
+          { "id": "Numpad5", "label": "5", "mpv": "KP5" },
+          { "id": "Numpad6", "label": "6", "mpv": "KP6" }
+        ]
+      },
+      {
+        "y": 4.2,
+        "x": 19,
+        "keys": [
+          { "id": "Numpad1", "label": "1", "mpv": "KP1" },
+          { "id": "Numpad2", "label": "2", "mpv": "KP2" },
+          { "id": "Numpad3", "label": "3", "mpv": "KP3" },
+          { "id": "NumpadEnter", "label": "ENT", "mpv": "KP_ENTER", "h": 2 }
+        ]
+      },
+      {
+        "y": 5.2,
+        "x": 19,
+        "keys": [
+          { "id": "Numpad0", "label": "0", "mpv": "KP0", "w": 2 },
+          { "id": "NumpadDecimal", "label": ".", "mpv": "KP_DEC" }
+        ]
+      }
+    ]
+  },
+  "layouts": {
+    "ansi": {
+      "rows": [
+        {
+          "y": 1.2,
+          "keys": [
+            { "id": "Backquote", "label": "`", "mpv": "`" },
+            { "id": "Digit1", "label": "1", "mpv": "1" },
+            { "id": "Digit2", "label": "2", "mpv": "2" },
+            { "id": "Digit3", "label": "3", "mpv": "3" },
+            { "id": "Digit4", "label": "4", "mpv": "4" },
+            { "id": "Digit5", "label": "5", "mpv": "5" },
+            { "id": "Digit6", "label": "6", "mpv": "6" },
+            { "id": "Digit7", "label": "7", "mpv": "7" },
+            { "id": "Digit8", "label": "8", "mpv": "8" },
+            { "id": "Digit9", "label": "9", "mpv": "9" },
+            { "id": "Digit0", "label": "0", "mpv": "0" },
+            { "id": "Minus", "label": "-", "mpv": "-" },
+            { "id": "Equal", "label": "=", "mpv": "=" },
+            { "id": "Backspace", "label": "BkSp", "mpv": "BS", "w": 2 }
+          ]
+        },
+        {
+          "y": 2.2,
+          "keys": [
+            { "id": "Tab", "label": "TAB", "mpv": "TAB", "w": 1.5 },
+            { "id": "KeyQ", "label": "Q", "mpv": "q" },
+            { "id": "KeyW", "label": "W", "mpv": "w" },
+            { "id": "KeyE", "label": "E", "mpv": "e" },
+            { "id": "KeyR", "label": "R", "mpv": "r" },
+            { "id": "KeyT", "label": "T", "mpv": "t" },
+            { "id": "KeyY", "label": "Y", "mpv": "y" },
+            { "id": "KeyU", "label": "U", "mpv": "u" },
+            { "id": "KeyI", "label": "I", "mpv": "i" },
+            { "id": "KeyO", "label": "O", "mpv": "o" },
+            { "id": "KeyP", "label": "P", "mpv": "p" },
+            { "id": "BracketLeft", "label": "[", "mpv": "[" },
+            { "id": "BracketRight", "label": "]", "mpv": "]" },
+            { "id": "Backslash", "label": "\\", "mpv": "\\", "w": 1.5 }
+          ]
+        },
+        {
+          "y": 3.2,
+          "keys": [
+            { "id": "CapsLock", "label": "CAPS", "mpv": "CAPS", "w": 1.75 },
+            { "id": "KeyA", "label": "A", "mpv": "a" },
+            { "id": "KeyS", "label": "S", "mpv": "s" },
+            { "id": "KeyD", "label": "D", "mpv": "d" },
+            { "id": "KeyF", "label": "F", "mpv": "f" },
+            { "id": "KeyG", "label": "G", "mpv": "g" },
+            { "id": "KeyH", "label": "H", "mpv": "h" },
+            { "id": "KeyJ", "label": "J", "mpv": "j" },
+            { "id": "KeyK", "label": "K", "mpv": "k" },
+            { "id": "KeyL", "label": "L", "mpv": "l" },
+            { "id": "Semicolon", "label": ";", "mpv": ";" },
+            { "id": "Quote", "label": "'", "mpv": "'" },
+            { "id": "Enter", "label": "ENTER", "mpv": "ENTER", "w": 2.25 }
+          ]
+        },
+        {
+          "y": 4.2,
+          "keys": [
+            { "id": "ShiftLeft", "label": "SHIFT", "w": 2.25 },
+            { "id": "KeyZ", "label": "Z", "mpv": "z" },
+            { "id": "KeyX", "label": "X", "mpv": "x" },
+            { "id": "KeyC", "label": "C", "mpv": "c" },
+            { "id": "KeyV", "label": "V", "mpv": "v" },
+            { "id": "KeyB", "label": "B", "mpv": "b" },
+            { "id": "KeyN", "label": "N", "mpv": "n" },
+            { "id": "KeyM", "label": "M", "mpv": "m" },
+            { "id": "Comma", "label": ",", "mpv": "," },
+            { "id": "Period", "label": ".", "mpv": "." },
+            { "id": "Slash", "label": "/", "mpv": "/" },
+            { "id": "ShiftRight", "label": "SHIFT", "w": 2.75 }
+          ]
+        },
+        {
+          "y": 5.2,
+          "keys": [
+            { "id": "ControlLeft", "label": "CTRL", "w": 1.25 },
+            { "id": "MetaLeft", "label": "WIN", "w": 1.25 },
+            { "id": "AltLeft", "label": "ALT", "w": 1.25 },
+            { "id": "Space", "label": "SPACE", "mpv": "SPACE", "w": 6.25 },
+            { "id": "AltRight", "label": "ALTGR", "w": 1.25 },
+            { "id": "Function", "label": "FN", "w": 1.25 },
+            { "id": "ContextMenu", "label": "MENU", "mpv": "MENU", "w": 1.25 },
+            { "id": "ControlRight", "label": "CTRL", "w": 1.25 }
+          ]
+        }
+      ]
+    },
+    "iso": {
+      "rows": [
+        {
+          "y": 1.2,
+          "keys": [
+            { "id": "Backquote", "label": "`", "mpv": "`" },
+            { "id": "Digit1", "label": "1", "mpv": "1" },
+            { "id": "Digit2", "label": "2", "mpv": "2" },
+            { "id": "Digit3", "label": "3", "mpv": "3" },
+            { "id": "Digit4", "label": "4", "mpv": "4" },
+            { "id": "Digit5", "label": "5", "mpv": "5" },
+            { "id": "Digit6", "label": "6", "mpv": "6" },
+            { "id": "Digit7", "label": "7", "mpv": "7" },
+            { "id": "Digit8", "label": "8", "mpv": "8" },
+            { "id": "Digit9", "label": "9", "mpv": "9" },
+            { "id": "Digit0", "label": "0", "mpv": "0" },
+            { "id": "Minus", "label": "-", "mpv": "-" },
+            { "id": "Equal", "label": "=", "mpv": "=" },
+            { "id": "Backspace", "label": "BkSp", "mpv": "BS", "w": 2 }
+          ]
+        },
+        {
+          "y": 2.2,
+          "keys": [
+            { "id": "Tab", "label": "TAB", "mpv": "TAB", "w": 1.5 },
+            { "id": "KeyQ", "label": "Q", "mpv": "q" },
+            { "id": "KeyW", "label": "W", "mpv": "w" },
+            { "id": "KeyE", "label": "E", "mpv": "e" },
+            { "id": "KeyR", "label": "R", "mpv": "r" },
+            { "id": "KeyT", "label": "T", "mpv": "t" },
+            { "id": "KeyY", "label": "Y", "mpv": "y" },
+            { "id": "KeyU", "label": "U", "mpv": "u" },
+            { "id": "KeyI", "label": "I", "mpv": "i" },
+            { "id": "KeyO", "label": "O", "mpv": "o" },
+            { "id": "KeyP", "label": "P", "mpv": "p" },
+            { "id": "BracketLeft", "label": "[", "mpv": "[" },
+            { "id": "BracketRight", "label": "]", "mpv": "]" },
+            { "gap": 0.25 },
+            { "id": "Enter", "label": "ENTER", "mpv": "ENTER", "w": 1.25, "h": 2 }
+          ]
+        },
+        {
+          "y": 3.2,
+          "keys": [
+            { "id": "CapsLock", "label": "CAPS", "mpv": "CAPS", "w": 1.75 },
+            { "id": "KeyA", "label": "A", "mpv": "a" },
+            { "id": "KeyS", "label": "S", "mpv": "s" },
+            { "id": "KeyD", "label": "D", "mpv": "d" },
+            { "id": "KeyF", "label": "F", "mpv": "f" },
+            { "id": "KeyG", "label": "G", "mpv": "g" },
+            { "id": "KeyH", "label": "H", "mpv": "h" },
+            { "id": "KeyJ", "label": "J", "mpv": "j" },
+            { "id": "KeyK", "label": "K", "mpv": "k" },
+            { "id": "KeyL", "label": "L", "mpv": "l" },
+            { "id": "Semicolon", "label": ";", "mpv": ";" },
+            { "id": "Quote", "label": "'", "mpv": "'" },
+            { "id": "Hash", "label": "#", "mpv": "#" }
+          ]
+        },
+        {
+          "y": 4.2,
+          "keys": [
+            { "id": "ShiftLeft", "label": "SHIFT", "w": 1.25 },
+            { "id": "Backslash", "label": "\\", "mpv": "\\" },
+            { "id": "KeyZ", "label": "Z", "mpv": "z" },
+            { "id": "KeyX", "label": "X", "mpv": "x" },
+            { "id": "KeyC", "label": "C", "mpv": "c" },
+            { "id": "KeyV", "label": "V", "mpv": "v" },
+            { "id": "KeyB", "label": "B", "mpv": "b" },
+            { "id": "KeyN", "label": "N", "mpv": "n" },
+            { "id": "KeyM", "label": "M", "mpv": "m" },
+            { "id": "Comma", "label": ",", "mpv": "," },
+            { "id": "Period", "label": ".", "mpv": "." },
+            { "id": "Slash", "label": "/", "mpv": "/" },
+            { "id": "ShiftRight", "label": "SHIFT", "w": 2.75 }
+          ]
+        },
+        {
+          "y": 5.2,
+          "keys": [
+            { "id": "ControlLeft", "label": "CTRL", "w": 1.25 },
+            { "id": "MetaLeft", "label": "WIN", "w": 1.25 },
+            { "id": "AltLeft", "label": "ALT", "w": 1.25 },
+            { "id": "Space", "label": "SPACE", "mpv": "SPACE", "w": 6.25 },
+            { "id": "AltRight", "label": "ALTGR", "w": 1.25 },
+            { "id": "Function", "label": "FN", "w": 1.25 },
+            { "id": "ContextMenu", "label": "MENU", "mpv": "MENU", "w": 1.25 },
+            { "id": "ControlRight", "label": "CTRL", "w": 1.25 }
+          ]
+        }
+      ]
+    },
+    "abnt2": {
+      "rows": [
+        {
+          "y": 1.2,
+          "keys": [
+            { "id": "Backquote", "label": "'", "mpv": "'" },
+            { "id": "Digit1", "label": "1", "mpv": "1" },
+            { "id": "Digit2", "label": "2", "mpv": "2" },
+            { "id": "Digit3", "label": "3", "mpv": "3" },
+            { "id": "Digit4", "label": "4", "mpv": "4" },
+            { "id": "Digit5", "label": "5", "mpv": "5" },
+            { "id": "Digit6", "label": "6", "mpv": "6" },
+            { "id": "Digit7", "label": "7", "mpv": "7" },
+            { "id": "Digit8", "label": "8", "mpv": "8" },
+            { "id": "Digit9", "label": "9", "mpv": "9" },
+            { "id": "Digit0", "label": "0", "mpv": "0" },
+            { "id": "Minus", "label": "-", "mpv": "-" },
+            { "id": "Equal", "label": "=", "mpv": "=" },
+            { "id": "Backspace", "label": "BkSp", "mpv": "BS", "w": 2 }
+          ]
+        },
+        {
+          "y": 2.2,
+          "keys": [
+            { "id": "Tab", "label": "TAB", "mpv": "TAB", "w": 1.5 },
+            { "id": "KeyQ", "label": "Q", "mpv": "q" },
+            { "id": "KeyW", "label": "W", "mpv": "w" },
+            { "id": "KeyE", "label": "E", "mpv": "e" },
+            { "id": "KeyR", "label": "R", "mpv": "r" },
+            { "id": "KeyT", "label": "T", "mpv": "t" },
+            { "id": "KeyY", "label": "Y", "mpv": "y" },
+            { "id": "KeyU", "label": "U", "mpv": "u" },
+            { "id": "KeyI", "label": "I", "mpv": "i" },
+            { "id": "KeyO", "label": "O", "mpv": "o" },
+            { "id": "KeyP", "label": "P", "mpv": "p" },
+            { "id": "Acute", "label": "´" },
+            { "id": "BracketLeft", "label": "[", "mpv": "[" },
+            { "gap": 0.25 },
+            { "id": "Enter", "label": "ENTER", "mpv": "ENTER", "w": 1.25, "h": 2 }
+          ]
+        },
+        {
+          "y": 3.2,
+          "keys": [
+            { "id": "CapsLock", "label": "CAPS", "mpv": "CAPS", "w": 1.75 },
+            { "id": "KeyA", "label": "A", "mpv": "a" },
+            { "id": "KeyS", "label": "S", "mpv": "s" },
+            { "id": "KeyD", "label": "D", "mpv": "d" },
+            { "id": "KeyF", "label": "F", "mpv": "f" },
+            { "id": "KeyG", "label": "G", "mpv": "g" },
+            { "id": "KeyH", "label": "H", "mpv": "h" },
+            { "id": "KeyJ", "label": "J", "mpv": "j" },
+            { "id": "KeyK", "label": "K", "mpv": "k" },
+            { "id": "KeyL", "label": "L", "mpv": "l" },
+            { "id": "KeyÇ", "label": "Ç", "mpv": "ç" },
+            { "id": "Tilde", "label": "~", "mpv": "~" },
+            { "id": "BracketRight", "label": "]", "mpv": "]" }
+          ]
+        },
+        {
+          "y": 4.2,
+          "keys": [
+            { "id": "ShiftLeft", "label": "SHIFT", "w": 1.75 },
+            { "id": "ReverseSolidus", "label": "\\", "mpv": "\\" },
+            { "id": "KeyZ", "label": "Z", "mpv": "z" },
+            { "id": "KeyX", "label": "X", "mpv": "x" },
+            { "id": "KeyC", "label": "C", "mpv": "c" },
+            { "id": "KeyV", "label": "V", "mpv": "v" },
+            { "id": "KeyB", "label": "B", "mpv": "b" },
+            { "id": "KeyN", "label": "N", "mpv": "n" },
+            { "id": "KeyM", "label": "M", "mpv": "m" },
+            { "id": "Comma", "label": ",", "mpv": "," },
+            { "id": "Period", "label": ".", "mpv": "." },
+            { "id": "Semicolon", "label": ";", "mpv": ";" },
+            { "id": "Slash", "label": "/", "mpv": "/" },
+            { "id": "ShiftRight", "label": "SHIFT", "w": 1.25 }
+          ]
+        },
+        {
+          "y": 5.2,
+          "keys": [
+            { "id": "ControlLeft", "label": "CTRL", "w": 1.25 },
+            { "id": "MetaLeft", "label": "WIN", "w": 1.25 },
+            { "id": "AltLeft", "label": "ALT", "w": 1.25 },
+            { "id": "Space", "label": "SPACE", "mpv": "SPACE", "w": 6.25 },
+            { "id": "AltRight", "label": "ALTGR", "w": 1.25 },
+            { "id": "Function", "label": "FN", "w": 1.25 },
+            { "id": "ContextMenu", "label": "MENU", "mpv": "MENU", "w": 1.25 },
+            { "id": "ControlRight", "label": "CTRL", "w": 1.25 }
+          ]
+        }
+      ]
+    },
+    "jis": {
+      "rows": [
+        {
+          "y": 1.2,
+          "keys": [
+            { "id": "Hankaku", "label": "半/全" },
+            { "id": "Digit1", "label": "1", "mpv": "1" },
+            { "id": "Digit2", "label": "2", "mpv": "2" },
+            { "id": "Digit3", "label": "3", "mpv": "3" },
+            { "id": "Digit4", "label": "4", "mpv": "4" },
+            { "id": "Digit5", "label": "5", "mpv": "5" },
+            { "id": "Digit6", "label": "6", "mpv": "6" },
+            { "id": "Digit7", "label": "7", "mpv": "7" },
+            { "id": "Digit8", "label": "8", "mpv": "8" },
+            { "id": "Digit9", "label": "9", "mpv": "9" },
+            { "id": "Digit0", "label": "0", "mpv": "0" },
+            { "id": "Minus", "label": "-", "mpv": "-" },
+            { "id": "Caret", "label": "^", "mpv": "^" },
+            { "id": "Yen", "label": "¥", "mpv": "¥" },
+            { "id": "Backspace", "label": "BkSp", "mpv": "BS" }
+          ]
+        },
+        {
+          "y": 2.2,
+          "keys": [
+            { "id": "Tab", "label": "TAB", "mpv": "TAB", "w": 1.5 },
+            { "id": "KeyQ", "label": "Q", "mpv": "q" },
+            { "id": "KeyW", "label": "W", "mpv": "w" },
+            { "id": "KeyE", "label": "E", "mpv": "e" },
+            { "id": "KeyR", "label": "R", "mpv": "r" },
+            { "id": "KeyT", "label": "T", "mpv": "t" },
+            { "id": "KeyY", "label": "Y", "mpv": "y" },
+            { "id": "KeyU", "label": "U", "mpv": "u" },
+            { "id": "KeyI", "label": "I", "mpv": "i" },
+            { "id": "KeyO", "label": "O", "mpv": "o" },
+            { "id": "KeyP", "label": "P", "mpv": "p" },
+            { "id": "At", "label": "@", "mpv": "@" },
+            { "id": "BracketLeft", "label": "[", "mpv": "[" },
+            { "gap": 0.25 },
+            { "id": "Enter", "label": "ENTER", "mpv": "ENTER", "w": 1.25, "h": 2 }
+          ]
+        },
+        {
+          "y": 3.2,
+          "keys": [
+            { "id": "CapsLock", "label": "CAPS", "mpv": "CAPS", "w": 1.75 },
+            { "id": "KeyA", "label": "A", "mpv": "a" },
+            { "id": "KeyS", "label": "S", "mpv": "s" },
+            { "id": "KeyD", "label": "D", "mpv": "d" },
+            { "id": "KeyF", "label": "F", "mpv": "f" },
+            { "id": "KeyG", "label": "G", "mpv": "g" },
+            { "id": "KeyH", "label": "H", "mpv": "h" },
+            { "id": "KeyJ", "label": "J", "mpv": "j" },
+            { "id": "KeyK", "label": "K", "mpv": "k" },
+            { "id": "KeyL", "label": "L", "mpv": "l" },
+            { "id": "Semicolon", "label": ";", "mpv": ";" },
+            { "id": "Colon", "label": ":", "mpv": ":" },
+            { "id": "BracketRight", "label": "]", "mpv": "]" }
+          ]
+        },
+        {
+          "y": 4.2,
+          "keys": [
+            { "id": "ShiftLeft", "label": "SHIFT", "w": 2.25 },
+            { "id": "KeyZ", "label": "Z", "mpv": "z" },
+            { "id": "KeyX", "label": "X", "mpv": "x" },
+            { "id": "KeyC", "label": "C", "mpv": "c" },
+            { "id": "KeyV", "label": "V", "mpv": "v" },
+            { "id": "KeyB", "label": "B", "mpv": "b" },
+            { "id": "KeyN", "label": "N", "mpv": "n" },
+            { "id": "KeyM", "label": "M", "mpv": "m" },
+            { "id": "Comma", "label": ",", "mpv": "," },
+            { "id": "Period", "label": ".", "mpv": "." },
+            { "id": "Slash", "label": "/", "mpv": "/" },
+            { "id": "Ro", "label": "ろ", "mpv": "\\" },
+            { "id": "ShiftRight", "label": "SHIFT", "w": 1.75 }
+          ]
+        },
+        {
+          "y": 5.2,
+          "keys": [
+            { "id": "ControlLeft", "label": "CTRL", "w": 1.25 },
+            { "id": "MetaLeft", "label": "WIN", "w": 1.25 },
+            { "id": "AltLeft", "label": "ALT", "w": 1.25 },
+            { "id": "Muhenkan", "label": "無変換", "w": 1.5 },
+            { "id": "Space", "label": "SPACE", "mpv": "SPACE", "w": 3 },
+            { "id": "Henkan", "label": "変換", "w": 1.5 },
+            { "id": "Kana", "label": "かな", "w": 1.5 },
+            { "id": "AltRight", "label": "ALTGR", "w": 1.25 },
+            { "id": "ContextMenu", "label": "MENU", "mpv": "MENU", "w": 1.25 },
+            { "id": "ControlRight", "label": "CTRL", "w": 1.25 }
+          ]
+        }
+      ]
+    }
+  }
+}
