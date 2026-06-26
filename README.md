@@ -19,6 +19,10 @@ Paste the `/portable_config` folder into your `./portable_config/mpv/` folder, d
 
 These are the scripts I wrote, both share the Moonlight color palette.
 
+<p align="center">
+  <video src="https://github.com/v-amorim/mpv/raw/main/assets/keybind-visualizer-and-sub-seek.mp4" width="100%" controls></video>
+</p>
+
 ### [`keybind-visualizer.lua`][keybind_visualizer]
 
 An interactive on-screen keyboard for mpv. Toggle it (`script-binding keybind-visualizer`), then move the mouse over any key to see its bindings. Close with `ESC` or by toggling again.
