@@ -20,7 +20,7 @@ Paste the `/portable_config` folder into your `./portable_config/mpv/` folder, d
 These are the scripts I wrote, both share the Moonlight color palette.
 
 <p align="center">
-  <video src="https://github.com/v-amorim/mpv/raw/main/assets/keybind-visualizer-and-sub-seek.mp4" width="100%" controls></video>
+  <img alt="keybind-visualizer and sub-seek" src="assets/keybind-visualizer-and-sub-seek.gif" width="100%"/>
 </p>
 
 ### [`keybind-visualizer.lua`][keybind_visualizer]
