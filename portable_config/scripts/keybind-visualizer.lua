@@ -259,6 +259,10 @@ local function parse_combo(key)
 			break
 		end
 	end
+	if rest:match("^[A-Z]$") then
+		shift = true
+		rest = rest:lower()
+	end
 	return ctrl, shift, alt, meta, rest
 end
 
