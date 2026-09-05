@@ -44,6 +44,7 @@ for name, rgb in pairs({
 	hover_bg = "282e46", -- #282e46  hovered row background
 	scroll_trk = "282e46", -- #282e46  scrollbar track
 	scroll_thb = "5dabf3", -- #5dabf3  scrollbar thumb
+	match = "a9c0ff", -- #a9c0ff  the typed words, picked out inside a row
 }) do
 	C[name] = to_ass(rgb)
 end
@@ -103,7 +104,10 @@ end
 ----------------------------------------------------------------------
 local active = false
 local overlay = nil
-local subs = {} -- { {time=seconds, text=string}, ... }
+local subs = {} -- every parsed line: { {time=seconds, text=string}, ... }
+local view = {} -- the lines the query keeps, and what every index below means
+local query = "" -- what has been typed into the search
+local tokens = {} -- the query split into lowercased words, all of which must hit
 local sel = 1 -- highlighted index
 local scroll = 1 -- index of the first visible row
 local cur = nil -- index of the line under the playhead
@@ -296,11 +300,87 @@ local function compute_geom()
 	}
 end
 
+----------------------------------------------------------------------
+-- Search
+----------------------------------------------------------------------
+-- Subtitles are prose, so every typed word has to appear literally: a fuzzy
+-- match over sentences would keep almost every line.
+local function line_matches(text)
+	local low = text:lower()
+	for _, token in ipairs(tokens) do
+		if not low:find(token, 1, true) then
+			return false
+		end
+	end
+	return true
+end
+
+-- rebuild the view, keeping the same line selected when it survives the filter
+local function apply_filter()
+	local anchor = view[sel]
+	tokens = {}
+	for token in query:lower():gmatch("%S+") do
+		tokens[#tokens + 1] = token
+	end
+
+	view = {}
+	for _, line in ipairs(subs) do
+		if #tokens == 0 or line_matches(line.text) then
+			view[#view + 1] = line
+		end
+	end
+
+	sel = 1
+	if anchor then
+		for i, line in ipairs(view) do
+			if line == anchor then
+				sel = i
+				break
+			end
+		end
+	end
+end
+
+-- colored ASS text: the typed words stand out from the rest of the line
+local function highlight(text, base_color)
+	local base = string.format("{\\1c&H%s&}", base_color)
+	if #tokens == 0 then
+		return base .. esc(text)
+	end
+	local low = text:lower()
+	local mask = {}
+	for _, token in ipairs(tokens) do
+		local from = 1
+		while true do
+			local at = low:find(token, from, true)
+			if not at then
+				break
+			end
+			for i = at, at + #token - 1 do
+				mask[i] = true
+			end
+			from = at + 1
+		end
+	end
+	local hl = string.format("{\\1c&H%s&}", C.match)
+	local out, i = {}, 1
+	while i <= #text do
+		local on = mask[i] == true
+		local j = i
+		while j < #text and (mask[j + 1] == true) == on do
+			j = j + 1
+		end
+		out[#out + 1] = (on and hl or base) .. esc(text:sub(i, j))
+		i = j + 1
+	end
+	return table.concat(out)
+end
+
 local function max_scroll()
 	if not geom then
 		return 1
 	end
-	return math.max(1, #subs - geom.visible + 1)
+	return math.max(1, #view - geom.visible + 1)
 end
 
 local function clamp_scroll()
@@ -328,8 +408,8 @@ local function cur_index(pos)
 		return nil
 	end
 	local idx = nil
-	for i = 1, #subs do
-		if subs[i].time <= pos + 0.05 then
+	for i = 1, #view do
+		if view[i].time <= pos + 0.05 then
 			idx = i
 		else
 			break
@@ -350,7 +430,7 @@ local function row_at(px, py)
 		return nil
 	end
 	local i = scroll + math.floor((py - geom.list_top) / geom.row_h)
-	if i >= 1 and i <= #subs then
+	if i >= 1 and i <= #view then
 		return i
 	end
 	return nil
@@ -387,22 +467,28 @@ local function render()
 		rect_draw(g.w - 2 * g.mx, (g.list_bottom - g.list_top) + round(g.row_h * 0.6))
 	)
 
-	-- header
+	-- header, with the query and how much of the track it leaves
 	local hfs = math.max(12, round(g.header_h * 0.55))
+	local counts = (query ~= "") and string.format("%d of %d lines", #view, #subs)
+		or string.format("%d lines", #subs)
+	local typed = (query ~= "")
+			and string.format("{\\1c&H%s&}%s_", C.match, esc(query))
+		or string.format("{\\1c&H%s&}type to search", C.dim)
 	a[#a + 1] = string.format(
-		"{\\an4\\pos(%d,%d)\\fs%d\\bord0\\shad0\\b1\\1c&H%s&}Subtitles{\\b0\\fs%d\\1c&H%s&}   %d lines",
+		"{\\an4\\pos(%d,%d)\\fs%d\\bord0\\shad0\\b1\\1c&H%s&}Subtitles{\\b0\\fs%d\\1c&H%s&}   %s   %s",
 		g.inner_x,
 		g.header_y + round(g.header_h / 2),
 		hfs,
 		C.text,
 		round(hfs * 0.7),
 		C.dim,
-		#subs
+		counts,
+		typed
 	)
 
 	-- rows
 	local first = scroll
-	local last = math.min(#subs, scroll + g.visible - 1)
+	local last = math.min(#view, scroll + g.visible - 1)
 	for i = first, last do
 		local ry = g.list_top + (i - first) * g.row_h
 		local is_sel = (i == sel)
@@ -424,21 +510,30 @@ local function render()
 			cy,
 			g.fs,
 			is_cur and C.cur or C.time,
-			fmt_time(subs[i].time)
+			fmt_time(view[i].time)
 		)
-		-- text
+		-- text, with the typed words picked out of it
 		a[#a + 1] = string.format(
-			"{\\an4\\pos(%d,%d)\\fs%d\\bord0\\shad0\\1c&H%s&}%s",
+			"{\\an4\\pos(%d,%d)\\fs%d\\bord0\\shad0}%s",
 			g.inner_x + g.time_col_w,
 			cy,
 			g.fs,
-			is_cur and C.cur or C.text,
-			esc(utf8_sub(subs[i].text, g.max_chars))
+			highlight(utf8_sub(view[i].text, g.max_chars), is_cur and C.cur or C.text)
+		)
+	end
+
+	if #view == 0 then
+		a[#a + 1] = string.format(
+			"{\\an4\\pos(%d,%d)\\fs%d\\bord0\\shad0\\1c&H%s&}No line matches that.",
+			g.inner_x,
+			g.list_top + round(g.row_h / 2),
+			g.fs,
+			C.dim
 		)
 	end
 
 	-- scrollbar (only when the list overflows)
-	if #subs > g.visible then
+	if #view > g.visible then
 		local trk_x = g.w - g.mx + round(g.mx * 0.25)
 		local trk_y = g.list_top
 		local trk_h = g.list_bottom - g.list_top
@@ -450,7 +545,7 @@ local function render()
 			C.scroll_trk,
 			rect_draw(tw, trk_h)
 		)
-		local thb_h = math.max(round(g.row_h), round(trk_h * g.visible / #subs))
+		local thb_h = math.max(round(g.row_h), round(trk_h * g.visible / #view))
 		local thb_y = trk_y + round((trk_h - thb_h) * (scroll - 1) / math.max(1, max_scroll() - 1))
 		a[#a + 1] = string.format(
 			"{\\an7\\pos(%d,%d)\\bord0\\shad0\\1c&H%s&\\1a&H10&\\p1}%s{\\p0}",
@@ -465,10 +560,12 @@ local function render()
 	a[#a + 1] = string.format(
 		"{\\an4\\pos(%d,%d)\\fs%d\\bord0\\shad0\\1c&H%s&}Click a line to jump   "
 			.. "{\\1c&H%s&}Up/Down{\\1c&H%s&}+{\\1c&H%s&}Enter{\\1c&H%s&}   "
-			.. "Wheel to scroll   {\\1c&H%s&}ESC{\\1c&H%s&} to close",
+			.. "Type to search, {\\1c&H%s&}BS{\\1c&H%s&} erases   {\\1c&H%s&}ESC{\\1c&H%s&} clears, then closes",
 		g.inner_x,
 		g.footer_y + round((g.h - g.footer_y - g.my) / 2),
 		math.max(11, round(g.row_h * 0.55)),
+		C.dim,
+		C.time,
 		C.dim,
 		C.time,
 		C.dim,
@@ -486,15 +583,15 @@ end
 -- Actions
 ----------------------------------------------------------------------
 local function seek_to(i)
-	if subs[i] then
-		mp.commandv("seek", string.format("%.3f", subs[i].time), "absolute+exact")
+	if view[i] then
+		mp.commandv("seek", string.format("%.3f", view[i].time), "absolute+exact")
 	end
 end
 
 local close -- fwd decl
 
 local function activate(i)
-	if subs[i] then
+	if view[i] then
 		seek_to(i)
 		close()
 	end
@@ -553,12 +650,49 @@ local function on_click()
 end
 
 local function move(delta)
-	if #subs == 0 then
+	if #view == 0 then
 		return
 	end
-	sel = math.max(1, math.min(#subs, sel + delta))
+	sel = math.max(1, math.min(#view, sel + delta))
 	ensure_visible()
 	render()
+end
+
+----------------------------------------------------------------------
+-- Search input: while the list owns the screen, printable keys type into the
+-- query instead of reaching the player.
+----------------------------------------------------------------------
+local SEARCH_KEYS = { SPACE = " ", ["-"] = "-", ["'"] = "'", ["."] = ".", [","] = ",", ["?"] = "?", ["!"] = "!" }
+for c in ("abcdefghijklmnopqrstuvwxyz0123456789"):gmatch(".") do
+	SEARCH_KEYS[c] = c
+end
+
+local function set_query(q)
+	query = q
+	apply_filter()
+	-- indices moved under the filter, so the playhead row has to be found again
+	cur = cur_index(mp.get_property_number("time-pos"))
+	scroll = math.max(1, sel - math.floor((geom and geom.visible or 10) / 2))
+	clamp_scroll()
+	render()
+end
+
+local function bind_search_keys()
+	for key, char in pairs(SEARCH_KEYS) do
+		mp.add_forced_key_binding(key, "sub-seek-s-" .. key, function()
+			set_query(query .. char)
+		end, { repeatable = true })
+	end
+	mp.add_forced_key_binding("BS", "sub-seek-s-bs", function()
+		set_query(query:sub(1, -2))
+	end, { repeatable = true })
+end
+
+local function unbind_search_keys()
+	for key in pairs(SEARCH_KEYS) do
+		mp.remove_key_binding("sub-seek-s-" .. key)
+	end
+	mp.remove_key_binding("sub-seek-s-bs")
 end
 
 local function scroll_by(delta)
@@ -580,6 +714,8 @@ close = function()
 	end
 	active = false
 	hovered = nil
+	query = ""
+	tokens = {}
 	mp.unobserve_property(on_mouse)
 	mp.unobserve_property(on_resize)
 	mp.unobserve_property(on_time)
@@ -594,6 +730,7 @@ close = function()
 	mp.remove_key_binding("sub-seek-wdn")
 	mp.remove_key_binding("sub-seek-home")
 	mp.remove_key_binding("sub-seek-end")
+	unbind_search_keys()
 	if saved_autohide ~= nil then
 		mp.set_property("cursor-autohide", saved_autohide)
 		saved_autohide = nil
@@ -605,6 +742,8 @@ end
 
 local function open_with(parsed)
 	subs = parsed
+	query = ""
+	apply_filter()
 	if not overlay then
 		overlay = mp.create_osd_overlay("ass-events")
 	end
@@ -628,7 +767,13 @@ local function open_with(parsed)
 	mp.observe_property("osd-dimensions", "native", on_resize)
 	mp.observe_property("time-pos", "number", on_time)
 
-	mp.add_forced_key_binding("ESC", "sub-seek-esc", close)
+	mp.add_forced_key_binding("ESC", "sub-seek-esc", function()
+		if query ~= "" then
+			set_query("")
+		else
+			close()
+		end
+	end)
 	mp.add_forced_key_binding("MBTN_LEFT", "sub-seek-click", on_click)
 	mp.add_forced_key_binding("UP", "sub-seek-up", function()
 		move(-1)
@@ -648,7 +793,7 @@ local function open_with(parsed)
 		render()
 	end)
 	mp.add_forced_key_binding("END", "sub-seek-end", function()
-		sel = #subs
+		sel = #view
 		ensure_visible()
 		render()
 	end)
@@ -661,6 +806,7 @@ local function open_with(parsed)
 	mp.add_forced_key_binding("WHEEL_DOWN", "sub-seek-wdn", function()
 		scroll_by(WHEEL_ROWS)
 	end)
+	bind_search_keys()
 
 	render()
 end
