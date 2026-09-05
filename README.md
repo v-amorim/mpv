@@ -45,6 +45,10 @@ An on-screen keyboard on `F6`. Hover a key to see what it does; `ESC` closes it.
 
 Bindings are read live from `input-bindings`, so it reflects your `input.conf` plus the builtins, with no list to maintain.
 
+Just type to search them. The query matches key names, combos, descriptions and commands. Each typed word matches as a substring, as a gapped run inside a single word (`sbdly` finds `sub-delay`) or as word initials, so a scatter of letters never lights up half the keyboard. It lights every matching key in light gray, ranking the hits in the panel and picking out the typed characters inside each description. `BS` erases, `ESC` clears the query and then closes.
+
+A `≡` badge marks anything that also lives in the uosc menu: in the corner of the key, and beside the binding's own line in the panel.
+
 mpv cannot detect the OS keyboard layout, so layouts live in a JSON file. Pick `ansi`, `iso`, `abnt2`, `jis`, or add your own.
 
 | File                                                            | Purpose                                                   |
@@ -122,6 +126,7 @@ flowchart TB
 | [`clipshot.lua`][clipshot]               | [ObserverOfTime][clipshot_src]    | Screenshot straight to the clipboard                    |
 | [`pause-indicator.lua`][pause_indicator] | [CogentRedTester][crt]            | Pause glyph in the corner                               |
 | [`reactive_vf_bypass.lua`][vf_bypass]    | [allecsc][allecsc]                | Keeps the SVP filter chain honest                       |
+| [`reset-all.lua`][reset_all]             | mine                              | `ALT+F5` puts playback back to defaults, no reload      |
 | [`restart-mpv.lua`][restart_mpv]         | mine                              | Reloads the file so config edits apply                  |
 | `skip-chapters.lua`                      | unattributed                      | Auto-skips chapters matching OP, ED, credits or preview |
 | [`skip-to-silence.lua`][skip_silence]    | [detuur][detuur]                  | Jumps to the next silence, usually the OP's end         |
@@ -172,6 +177,7 @@ Shaders, [Anime4K][Anime4k] among them, are too large to commit; [`shaders_list.
 [crt]: https://github.com/CogentRedTester/mpv-scripts
 [vf_bypass]: ./portable_config/scripts/reactive_vf_bypass.lua
 [allecsc]: https://github.com/allecsc/mpv-qol-scripts
+[reset_all]: ./portable_config/scripts/reset-all.lua
 [restart_mpv]: ./portable_config/scripts/restart-mpv.lua
 [skip_silence]: ./portable_config/scripts/skip-to-silence.lua
 [detuur]: https://github.com/detuur/mpv-scripts
