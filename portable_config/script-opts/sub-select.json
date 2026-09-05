@@ -1,0 +1,47 @@
+[
+  {
+    "alang": [ "jpn", "jap", "ja" ],
+    "slang": "eng?",
+    "blacklist": [ "sign", "song", "forced", "s&s" ]
+  },
+  {
+    "alang": [ "jpn", "jap", "ja" ],
+    "slang": "eng?",
+    "blacklist": [ "sign", "song", "s&s" ]
+  },
+  {
+    "alang": [ "eng?", "und" ],
+    "slang": [ "en%-us", "eng?", "und" ],
+    "condition": "sub.forced"
+  },
+  {
+    "inherit": "^",
+    "slang": "und"
+  },
+  {
+    "alang": "*",
+    "slang": "forced"
+  },
+  {
+    "alang": "eng?",
+    "slang": [ "en%-us", "eng?", "und" ],
+    "whitelist": [ "sign", "song" ]
+  },
+  {
+    "alang": "eng?",
+    "slang": "und"
+  },
+  {
+    "alang": "*",
+    "slang": [ "en%-us", "eng?", "und" ]
+  },
+  {
+    "alang": "no",
+    "slang": "no"
+  },
+  {
+    "alang": [ "chi", "zho", "zh" ],
+    "slang": [ "eng?", "und" ],
+    "blacklist": [ "sign", "song", "forced", "s&s" ]
+  }
+]

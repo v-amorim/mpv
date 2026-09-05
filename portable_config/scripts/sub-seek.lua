@@ -18,7 +18,7 @@ local utils = require("mp.utils")
 -- Options
 ----------------------------------------------------------------------
 -- ffmpeg used to dump the selected subtitle track. Falls back to PATH.
-local FFMPEG = [[C:\Program Files (x86)\SVP 4\utils\ffmpeg.exe]]
+local FFMPEG = [[ffmpeg]]
 local WHEEL_ROWS = 3 -- rows scrolled per mouse wheel notch
 
 ----------------------------------------------------------------------

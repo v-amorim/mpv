@@ -2,7 +2,7 @@
 
 This is the most customizable media player I've ever used. It's a free and open-source media player that supports a wide range of media formats.
 
-Here I keep my mpv scripts and configurations. Also contains my SVP configurations.
+Here I keep my mpv scripts and configurations.
 
 Paste the `/portable_config` folder into your `./portable_config/mpv/` folder, doing so you load the configurations and scripts.
 
@@ -13,7 +13,7 @@ Paste the `/portable_config` folder into your `./portable_config/mpv/` folder, d
 </p>
 
 > [!NOTE]
-> This repository is being uploaded piece by piece. The scripts below are the ones I wrote myself and are available now. Everything else (main config files, third-party scripts, shaders, fonts, SVP) is listed under [Not committed yet](#not-committed-yet) and will be added over time.
+> The config files, fonts and scripts are all here. Only two things are left out: the shaders, because of their size, and the [UOSC][UOSC] folder, because I keep it unmodified from upstream.
 
 ## scripts
 
@@ -42,10 +42,7 @@ mpv exposes no API for "all subtitle lines", so the currently selected sub track
 
 Bind it in `input.conf`, e.g. `F7 script-binding sub-seek-list`.
 
-## Not committed yet
-
-<details>
-   <summary>Files not uploaded yet</summary>
+## Configuration
 
 ### Main folder
 
@@ -100,10 +97,6 @@ Shows an indicator in the top right side when the video is paused.
 
 Reloads the current file, useful when you change the configurations and want to apply them without restarting the player.
 
-#### [`run-subtitle_editor.lua`][run_subtitle_editor]
-
-Opens the current (external) subtitle on the [subtitle editor][subtitle_editor] that I made.
-
 #### [`sub-export.lua`][sub_export]
 
 Tries to extract the current subtitle from the video and save it in the same folder as the video.
@@ -129,7 +122,7 @@ As I'm not used to the Lua language, it has some bugs:
 
 > Feature-rich minimalist proximity-based UI for MPV player.
 
-The imported folder from [UOSC][UOSC], where I keep the scripts that I use from it.
+The imported folder from [UOSC][UOSC]. Not uploaded here, since I keep it unmodified: get it from upstream and drop it into `scripts/`.
 
 ### script-opts
 
@@ -145,8 +138,6 @@ I've included a `shaders_list.txt` file that lists the names of the shaders that
 
 Here I keep the fonts that I use with MPV, it is possible to load directly from Windows fonts, but can be slow sometimes.
 
-</details>
-
 <!-- URLS -->
 
 [keybind_visualizer]: ./portable_config/scripts/keybind-visualizer.lua
@@ -155,7 +146,6 @@ Here I keep the fonts that I use with MPV, it is possible to load directly from 
 [sub_seek]: ./portable_config/scripts/sub-seek.lua
 [Anime4k]: https://github.com/bloc97/Anime4K
 [UOSC]: https://github.com/tomasklaen/uosc
-[subtitle_editor]: https://github.com/v-amorim/subtitle_editor
 [mpv_conf]: ./portable_config/mpv.conf
 [input_conf]: ./portable_config/input.conf
 [profile_conf]: ./portable_config/profiles.conf
@@ -163,7 +153,6 @@ Here I keep the fonts that I use with MPV, it is possible to load directly from 
 [autoload]: ./portable_config/scripts/autoload.lua
 [pause_indicator]: ./portable_config/scripts/pause-indicator.lua
 [restart_mpv]: ./portable_config/scripts/restart-mpv.lua
-[run_subtitle_editor]: ./portable_config/scripts/run-subtitle_editor.lua
 [sub_export]: ./portable_config/scripts/sub-export.lua
 [sub_select]: ./portable_config/scripts/sub-select.lua
 [thumbfast]: ./portable_config/scripts/thumbfast.lua

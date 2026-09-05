@@ -10,3 +10,5 @@ cache/
 
 # Tokens / secrets
 anilistToken*.txt
+
+portable_config/scripts/uosc/
