@@ -348,6 +348,12 @@ local function binding_desc(b)
 	return t
 end
 
+-- combo labels carry multi-byte glyphs (arrows), so padding needs characters, not bytes
+local function ulen(s)
+	local _, n = s:gsub("[^\128-\191]", "")
+	return n
+end
+
 -- word-wrap a string to a max width (in characters), hard-breaking words that
 -- are longer than the width; returns a list of lines.
 local function wrap_text(s, width)
@@ -479,7 +485,9 @@ local function compute_geom()
 		return nil
 	end
 	local w, h = dim.w, dim.h
-	local panel_units = 3.1
+	-- the panel needs room for the busiest key (6 bindings plus separators), so it
+	-- gets the larger share of the vertical stack and the keyboard shrinks to suit
+	local panel_units = 6
 	local header_units = 0.9
 	local stack = header_units + 0.3 + GRID_H + 0.6 + panel_units
 	local ku = math.min((w * 0.96) / GRID_W, (h * 0.94) / stack)
@@ -567,11 +575,18 @@ local function build_info_lines(id)
 	local sep =
 		string.format("{\\fs%d\\1c&H%s&}%s", sep_fs, C.sep, string.rep("\xE2\x94\x80", math.floor(max_chars * 0.98)))
 
+	-- every description starts at one column, so the combo pads out to the widest
+	local div = "\xE2\x94\x82"
+	local combo_w = 0
+	for _, b in ipairs(lst) do
+		combo_w = math.max(combo_w, ulen(b.label .. name))
+	end
+	local indent = combo_w + 3 -- pad + space + divider + space
+
 	local budget = max_lines - 1 -- title already used one line
 	local shown = 0
 	for i, b in ipairs(lst) do
 		local combo = b.label .. name
-		local indent = #combo + 2
 		local wrapped = wrap_text(binding_desc(b), math.max(8, max_chars - indent))
 		local need = #wrapped + ((i > 1) and 1 or 0) -- +1 for the separator row
 		local reserve = (i == #lst) and 0 or 1
@@ -584,12 +599,15 @@ local function build_info_lines(id)
 			lines[#lines + 1] = sep
 			total_h = total_h + sep_h
 		end
-		-- first physical line: accent combo + 2 spaces + first chunk
+		-- first physical line: accent combo, padded, then the divider and first chunk
 		lines[#lines + 1] = string.format(
-			"{\\fs%d\\1c&H%s&}%s{\\1c&H%s&}\\h\\h%s",
+			"{\\fs%d\\1c&H%s&}%s%s{\\1c&H%s&}\\h%s\\h{\\1c&H%s&}%s",
 			info_fs,
 			C.accent,
 			esc(combo),
+			string.rep("\\h", combo_w - ulen(combo)),
+			C.sep,
+			div,
 			C.text,
 			esc(wrapped[1])
 		)
