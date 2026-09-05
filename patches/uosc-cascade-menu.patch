@@ -1,0 +1,210 @@
+--- a/portable_config/scripts/uosc/elements/Menu.lua
++++ b/portable_config/scripts/uosc/elements/Menu.lua
+@@ -107,6 +107,12 @@
+ 	self.callback = callback
+ 	self.opts = opts or {}
+ 	self.offset_x = 0 -- Used for submenu transition animation.
++	-- Local patch: point the menu was opened from. The root is pinned here and
++	-- every deeper level cascades to its right, native context menu style. Only
++	-- menus that ask for it follow the pointer; the rest stay centered.
++	local at_cursor = data.anchor_at_cursor and not cursor.hidden
++	self.anchor_x = at_cursor and cursor.x or nil
++	self.anchor_y = at_cursor and cursor.y or nil
+ 	self.mouse_nav = self.opts.mouse_nav -- Stops pre-selecting items
+ 	self.mouse_hovered_index = nil -- Current menu's item being hovered by mouse, ignoring it's selectable or not.
+ 	self.item_height = nil
+@@ -350,10 +356,25 @@
+ 		local max_height = height_available - title_height - footnote_height
+ 		local content_height = self.scroll_step * #menu.items
+ 		menu.height = math.min(content_height - self.item_spacing, max_height)
++		-- Local patch: the root opens at the click, a submenu lines up with the item
++		-- that opens it. Parents are dimensioned before their children, so their
++		-- `top` is already final here.
++		local anchored_top
++		if menu.is_root then
++			anchored_top = self.anchor_y and self.anchor_y + title_height
++		elseif menu.parent_menu then
++			local index = itable_index_of(menu.parent_menu.items, menu)
++			if index then
++				anchored_top = menu.parent_menu.top - menu.parent_menu.scroll_y + (index - 1) * self.scroll_step
++			end
++		end
+ 		menu.top = clamp(
+ 			title_height + margin + self.padding,
+-			menu.search and math.min(menu.search.min_top, menu.search.source.top) or height_available,
+-			round((height_available - menu.height + title_height) / 2)
++			menu.search and math.min(menu.search.min_top, menu.search.source.top)
++				or anchored_top
++				or height_available,
++			anchored_top and math.max(title_height + margin + self.padding, height_available - menu.height)
++				or round((height_available - menu.height + title_height) / 2)
+ 		)
+ 		if menu.search then
+ 			menu.search.min_top = math.min(menu.search.min_top, menu.top)
+@@ -368,7 +389,21 @@
+ 
+ -- Updates element coordinates to match padding box of currently open (sub)menu.
+ function Menu:update_coordinates()
+-	local ax = round((display.width - self.current.width) / 2 - self.padding) + self.offset_x
++	-- Local patch: place the current level by its depth from a pinned root, so
++	-- opening or leaving a submenu never moves the levels already on screen.
++	local depth = 0
++	local parent = self.current.parent_menu
++	while parent do
++		depth = depth + parent.width + self.padding * 2 + self.gap
++		parent = parent.parent_menu
++	end
++	local margin = self.item_height and round(self.item_height / 2) or 0
++	local root_ax = self.anchor_x and round(self.anchor_x - self.padding)
++		or round((display.width - self.current.width) / 2 - self.padding)
++	-- keep the deepest column on screen, shifting the whole cascade if needed
++	local width = depth + self.current.width + self.padding * 2
++	root_ax = clamp(margin, root_ax, math.max(margin, display.width - margin - width))
++	local ax = root_ax + depth + self.offset_x
+ 	self:set_coordinates(
+ 		ax, self.current.top - self.padding,
+ 		ax + self.current.width + self.padding * 2, self.current.top + self.current.height + self.padding
+@@ -611,8 +646,8 @@
+ 	local menu = self:get_menu(id)
+ 	if not menu then return end
+ 	self:activate_menu(id)
+-	self:tween(-(display.width / 2 - menu.width / 2 - x), 0, function(offset) self:set_offset_x(offset) end)
+-	self.opacity = 1 -- in case tween above canceled fade in animation
++	-- Local patch: levels are pinned by depth, so there is nothing to slide
++	self.opacity = 1
+ end
+ 
+ function Menu:back()
+@@ -628,6 +663,39 @@
+ 	end
+ end
+ 
++-- Local patch: walk the tree with the mouse alone, the way a native context menu
++-- does. `key` names the pending transition, so hovering the same target again
++-- does not restart its timer, and hovering anything else cancels it.
++---@param key string|nil
++---@param delay? number
++---@param action? fun()
++function Menu:schedule_hover(key, delay, action)
++	if self.hover_key == key then return end
++	self.hover_key = key
++	if self.hover_timer then
++		self.hover_timer:kill()
++		self.hover_timer = nil
++	end
++	if not key then return end
++
++	-- Only act once the pointer settles: a cursor still travelling is on its way
++	-- somewhere else, and opening under it is what makes hover navigation feel
++	-- like it fires at random.
++	local settle_distance = 8 * state.scale
++	local x, y = cursor.x, cursor.y
++	local function fire()
++		if not (self:is_alive() and self.mouse_nav and self.hover_key == key) then return end
++		local dx, dy = cursor.x - x, cursor.y - y
++		if dx * dx + dy * dy > settle_distance * settle_distance then
++			x, y = cursor.x, cursor.y
++			self.hover_timer = mp.add_timeout(delay, fire)
++			return
++		end
++		action()
++	end
++	self.hover_timer = mp.add_timeout(delay, fire)
++end
++
+ ---@param shortcut? Shortcut
+ ---@param is_pointer? boolean Whether this was called by a pointer.
+ function Menu:activate_selected_item(shortcut, is_pointer)
+@@ -640,8 +708,8 @@
+ 				self:select_index(1, item.id)
+ 			end
+ 			self:activate_menu(item.id)
+-			self:tween(self.offset_x + menu.width / 2, 0, function(offset) self:set_offset_x(offset) end)
+-			self.opacity = 1 -- in case tween above canceled fade in animation
++			-- Local patch: levels are pinned by depth, so there is nothing to slide
++			self.opacity = 1
+ 		else
+ 			local actions = item.actions or menu.item_actions
+ 			local action = actions and actions[menu.action_index]
+@@ -1378,6 +1446,7 @@
+ 
+ 	local ass = assdraw.ass_new()
+ 	local icon_size = self.font_size
++	local tooltip_text, tooltip_rect -- local patch: drawn last, on top of every level
+ 
+ 	---@param menu MenuStack
+ 	---@param x number
+@@ -1414,6 +1483,18 @@
+ 
+ 		if is_parent then
+ 			cursor:zone('primary_down', bg_rect, self:create_action(function() self:slide_in_menu(menu.id, x) end))
++			-- Local patch: rest on a parent column to walk back out, unless the item
++			-- under the cursor is the one that owns the menu currently open
++			if self.mouse_nav and get_point_to_rectangle_proximity(cursor, bg_rect) <= 0 then
++				local hovered = math.floor((cursor.y - content_rect.ay + menu.scroll_y) / self.scroll_step) + 1
++				if hovered ~= menu.selected_index then
++					self:schedule_hover('back:' .. tostring(menu.id), 0.1, function()
++						self:slide_in_menu(menu.id, x)
++					end)
++				else
++					self:schedule_hover(nil)
++				end
++			end
+ 		end
+ 
+ 		-- Scrollbar
+@@ -1438,6 +1519,7 @@
+ 
+ 		---@type MenuAction|nil
+ 		local selected_action
++		local selected_tooltip = nil -- local patch: `tooltip` of the item under the cursor
+ 		for index = start_index, end_index, 1 do
+ 			local item = menu.items[index]
+ 
+@@ -1468,9 +1550,21 @@
+ 						is_selected = true
+ 						request_render()
+ 					end
++					-- Local patch: rest on a submenu item to enter it
++					if item.items then
++						self:schedule_hover('open:' .. tostring(menu.id) .. ':' .. index, 0.2, function()
++							if self.current == menu and menu.selected_index == index then
++								self:activate_selected_item({id = 'right', key = 'right'}, true)
++							end
++						end)
++					else
++						self:schedule_hover(nil)
++					end
+ 				end
+ 			end
+ 
++			if is_current and is_selected and item.tooltip then selected_tooltip = item.tooltip end
++
+ 			local has_background = is_selected or item.active
+ 			local next_item = menu.items[index + 1]
+ 			local next_is_active = next_item and next_item.active
+@@ -1658,6 +1752,12 @@
+ 			end
+ 		end
+ 
++		-- Local patch: hold the hovered item's tooltip until every level is painted,
++		-- otherwise the columns drawn after this one cover it
++		if is_current and selected_tooltip and not selected_action then
++			tooltip_text, tooltip_rect = selected_tooltip, bg_rect
++		end
++
+ 		-- Footnote / Selected action label
+ 		if is_current and (menu.footnote or selected_action) then
+ 			local height_half = self.font_size
+@@ -1825,6 +1925,11 @@
+ 		parent_menu = parent_menu.parent_menu
+ 	end
+ 
++	-- Local patch: hovered item's tooltip, last so no column paints over it
++	if tooltip_text then
++		ass:tooltip(tooltip_rect, tooltip_text, {size = self.font_size, align = 2, offset = self.padding * 2})
++	end
++
+ 	return ass
+ end
+ 
