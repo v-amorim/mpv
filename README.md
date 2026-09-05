@@ -5,7 +5,7 @@ My mpv setup: player settings, a keybind map I keep expanding, a [uosc][UOSC] th
 <p align="center">
   <img alt="mpv" src="https://github.com/user-attachments/assets/8a902a84-a526-49f9-b456-066a2b727981" width="49%"/>
   &nbsp;&nbsp;
-  <img alt="mpv_context_menu" src="https://github.com/user-attachments/assets/6f6654ac-246c-4f0b-8603-ab4e4993b7e9" width="49%"/>
+  <img alt="The menu open three levels deep, shaders ticked" src="assets/uosc-menu-cascade.png" width="49%"/>
 </p>
 
 > [!NOTE]
@@ -45,6 +45,10 @@ An on-screen keyboard on `F6`. Hover a key to see what it does; `ESC` closes it.
 
 Bindings are read live from `input-bindings`, so it reflects your `input.conf` plus the builtins, with no list to maintain.
 
+<p align="center">
+  <img alt="The keyboard map filtered by a search for sub" src="assets/keybind-visualizer-search.png" width="100%"/>
+</p>
+
 Just type to search them. The query matches key names, combos, descriptions and commands. Each typed word matches as a substring, as a gapped run inside a single word (`sbdly` finds `sub-delay`) or as word initials, so a scatter of letters never lights up half the keyboard. It lights every matching key in light gray, ranking the hits in the panel and picking out the typed characters inside each description. `BS` erases, `ESC` clears the query and then closes.
 
 A `≡` badge marks anything that also lives in the uosc menu: in the corner of the key, and beside the binding's own line in the panel. Those entries describe themselves, so the panel shows the description rather than the raw command.
@@ -62,9 +66,24 @@ A fullscreen, clickable index of every subtitle line with timestamps, on `F4`. C
 
 mpv exposes no "all subtitle lines" API, so the track is dumped to a temporary `.srt` with ffmpeg and parsed; ASS and embedded subs get flattened on the way.
 
+<p align="center">
+  <img alt="The subtitle index, the line playing now highlighted" src="assets/sub-seek.png" width="100%"/>
+</p>
+
 ### [`uosc-menu.lua`][uosc_menu]
 
 uosc builds its menu from the `#!` comments in `input.conf`, but its items get no icon and say nothing about themselves. This reads the same comments, understands two more tokens, and hands uosc the finished menu through its public `open-menu` message, so no uosc file is touched.
+
+<p align="center">
+  <img alt="The menu root, every entry with its icon and key" src="assets/uosc-menu-root.png" width="49%"/>
+  &nbsp;&nbsp;
+  <img alt="Tools submenu, the hovered entry explained above the cascade" src="assets/uosc-menu-tools.png" width="49%"/>
+</p>
+<p align="center">
+  <img alt="Subtitle font list as a radio group" src="assets/uosc-menu-radio.png" width="49%"/>
+  &nbsp;&nbsp;
+  <img alt="Shaders three levels deep, several ticked" src="assets/uosc-menu-cascade.png" width="49%"/>
+</p>
 
 ```conf
 g cycle interpolation   #! Video @movie > Interpolation @animation ?Resamples frames to the display rate
@@ -100,6 +119,14 @@ Moonlight: dark, low-contrast, chrome kept thin. Set in [`uosc.conf`][uosc_conf]
 | `error`           | `#ca5f71` | Failures                       |
 
 Shape matters as much: `timeline_style=bar` at 20px, `top_bar=no-border`, `border_radius=6`, `font_scale=1.18`, `font_bold=yes`. Most surfaces sit under full opacity; the title is transparent, so nothing floats over the video. Menus run at `submenu=1` opacity, so every open level reads as one surface rather than fading into the background.
+
+<p align="center">
+  <img alt="Playback with nothing but the minimized timeline" src="assets/uosc-minimal.png" width="49%"/>
+  &nbsp;&nbsp;
+  <img alt="The chrome brought up: top bar, controls and timeline" src="assets/uosc-chrome.png" width="49%"/>
+</p>
+
+At rest only the minimized timeline shows; `TAB` toggles the interface as a whole, `SHIFT+TAB` toggles that last bar. The timeline colours the ranges it recognises, so the OP, the ED and the preview read as bands rather than as chapter ticks: `chapter_ranges` above, with `chapter_range_patterns` teaching it the shorthand titles releases actually use.
 
 ### The menu patch
 
