@@ -2,14 +2,45 @@
 
 My mpv setup: player settings, a keybind map I keep expanding, a [uosc][UOSC] theme, and the script selection I actually use.
 
-<p align="center">
-  <img alt="mpv" src="https://github.com/user-attachments/assets/8a902a84-a526-49f9-b456-066a2b727981" width="49%"/>
-  &nbsp;&nbsp;
-  <img alt="The menu open three levels deep, shaders ticked" src="assets/uosc-menu-cascade.png" width="49%"/>
-</p>
+| Playing, with the interface showing |
+| ----------------------------------- |
+| ![mpv playing][shot_playing]        |
 
-> [!NOTE]
-> Two things are deliberately missing: the **shaders**, too large to commit, and the **[uosc][UOSC] folder**, which I take from upstream. uosc carries one local change, kept as a patch in [`patches/`](./patches) rather than as a fork.
+> [!IMPORTANT]
+> Two things are deliberately missing: the **shaders**, too large to commit, and the **[uosc][UOSC] folder**, taken from upstream. uosc carries one local change, kept in [`patches/`][patches_dir] rather than as a fork: run `just patch` after installing or updating it, or the menu reverts to stock.
+
+## The uosc theme
+
+Moonlight: dark, low-contrast, the interface kept thin, set in [`uosc.conf`][uosc_conf].
+
+| Role              | Hex       | Used for                       |
+| ----------------- | --------- | ------------------------------ |
+| `foreground`      | `#ced9ff` | Timeline fill, active controls |
+| `foreground_text` | `#0d0e17` | Text on top of that fill       |
+| `background`      | `#191726` | Menus, tooltips, bars          |
+| `background_text` | `#f8eaf8` | Text on those surfaces         |
+| `curtain`         | `#0d0e17` | Dim behind open menus          |
+| `success`         | `#49ef95` | Positive feedback              |
+| `error`           | `#ca5f71` | Failures                       |
+
+Shape matters as much: `timeline_style=bar` at 20px, `top_bar=no-border`, `border_radius=6`, `font_scale=1.18`, `font_bold=yes`. Most surfaces sit under full opacity; the title is transparent, so nothing floats over the video. Menus run at `submenu=1` opacity, so every open level reads as one surface rather than fading into the background.
+
+| At rest: the minimized timeline alone | Woken: top bar, controls, timeline |
+| ------------------------------------- | ---------------------------------- |
+| ![Minimized timeline][shot_minimal]   | ![Full interface][shot_interface]  |
+
+`TAB` toggles the interface as a whole, `SHIFT+TAB` toggles that last bar. The timeline colours the ranges it recognises, so the OP, the ED and the preview read as bands rather than as chapter ticks: `chapter_ranges` sets those colours, with `chapter_range_patterns` teaching it the shorthand titles releases actually use.
+
+### The menu patch
+
+uosc centres whichever menu level is current and slides the whole stack to get there, so walking a path moves everything under the pointer. [`patches/uosc-cascade-menu.patch`][uosc_patch] makes it behave like a native context menu instead:
+
+- the root opens where you clicked, and each submenu lines up with the item that opens it
+- levels are placed by depth, so opening or leaving one never moves the others
+- resting on an item walks in, resting on a parent column walks back out, no click needed; a pointer still travelling is ignored, so passing over an item never opens it
+- the hovered entry's description and command are drawn under the menu, on top of every level
+
+The folder is gitignored and uosc's updater overwrites it, so the change lives as a patch rather than as edits in the tree. [`patches/apply.py`][apply_py] applies it with the standard library alone.
 
 ## Install
 
@@ -27,17 +58,17 @@ portable_config/
     script-opts/
         uosc.conf ## the theme
     scripts/
-        uosc/ ## add from upstream, then run patches/apply.sh
+        uosc/ ## add from upstream, then: just patch
     shaders/ ## add your own
 ```
 
 ## Scripts I wrote
 
-Four of them, all on the Moonlight palette below.
+Five of them, all on the Moonlight palette.
 
-<p align="center">
-  <img alt="keybind-visualizer and sub-seek" src="assets/keybind-visualizer-and-sub-seek.gif" width="100%"/>
-</p>
+| The keyboard map and the subtitle index, in motion |
+| -------------------------------------------------- |
+| ![Keyboard map and subtitle index][shot_map_gif]   |
 
 ### [`keybind-visualizer.lua`][keybind_visualizer]
 
@@ -45,11 +76,11 @@ An on-screen keyboard on `F6`. Hover a key to see what it does; `ESC` closes it.
 
 Bindings are read live from `input-bindings`, so it reflects your `input.conf` plus the builtins, with no list to maintain.
 
-<p align="center">
-  <img alt="The keyboard map filtered by a search for sub" src="assets/keybind-visualizer-search.png" width="100%"/>
-</p>
+| Searching every binding for `sub`           |
+| ------------------------------------------- |
+| ![Keyboard map, searching][shot_map_search] |
 
-Just type to search them. The query matches key names, combos, descriptions and commands. Each typed word matches as a substring, as a gapped run inside a single word (`sbdly` finds `sub-delay`) or as word initials, so a scatter of letters never lights up half the keyboard. It lights every matching key in light gray, ranking the hits in the panel and picking out the typed characters inside each description. `BS` erases, `ESC` clears the query and then closes.
+Just type to search them. The query matches key names, combos, descriptions and commands. Each typed word matches as a substring, as a gapped run inside a single word (`sbdly` finds `sub-delay`) or as word initials, so a scatter of letters never lights up half the keyboard. Typed characters are picked out inside each description. `BS` erases, `ESC` clears the query and then closes.
 
 A `≡` badge marks anything that also lives in the uosc menu: in the corner of the key, and beside the binding's own line in the panel. Those entries describe themselves, so the panel shows the description rather than the raw command.
 
@@ -62,82 +93,58 @@ mpv cannot detect the OS keyboard layout, so layouts live in a JSON file. Pick `
 
 ### [`sub-seek.lua`][sub_seek]
 
-A fullscreen, clickable index of every subtitle line with timestamps, on `F4`. Click a line, or arrow to it and press Enter, to seek there. Like the builtin sub-seek, except you jump anywhere instead of stepping.
+A fullscreen, clickable index of every subtitle line with timestamps, on `F4`. Click a line, or arrow to it and press Enter. Unlike the builtin sub-seek, you jump anywhere instead of stepping.
+
+Type to filter it down: every word typed has to appear in the line, so `long line` keeps only those carrying both, and the hits are picked out where they sit. `BS` erases, `ESC` clears the query and then closes.
 
 mpv exposes no "all subtitle lines" API, so the track is dumped to a temporary `.srt` with ffmpeg and parsed; ASS and embedded subs get flattened on the way.
 
-<p align="center">
-  <img alt="The subtitle index, the line playing now highlighted" src="assets/sub-seek.png" width="100%"/>
-</p>
+| Every line of the track, the one playing highlighted | Filtered down to the lines that match |
+| --- | --- |
+| ![Subtitle index][shot_sub_seek] | ![Subtitle index, searching][shot_sub_search] |
 
 ### [`uosc-menu.lua`][uosc_menu]
 
 uosc builds its menu from the `#!` comments in `input.conf`, but its items get no icon and say nothing about themselves. This reads the same comments, understands two more tokens, and hands uosc the finished menu through its public `open-menu` message, so no uosc file is touched.
 
-<p align="center">
-  <img alt="The menu root, every entry with its icon and key" src="assets/uosc-menu-root.png" width="49%"/>
-  &nbsp;&nbsp;
-  <img alt="Tools submenu, the hovered entry explained above the cascade" src="assets/uosc-menu-tools.png" width="49%"/>
-</p>
-<p align="center">
-  <img alt="Subtitle font list as a radio group" src="assets/uosc-menu-radio.png" width="49%"/>
-  &nbsp;&nbsp;
-  <img alt="Shaders three levels deep, several ticked" src="assets/uosc-menu-cascade.png" width="49%"/>
-</p>
+| Every entry with its icon and key | The hovered entry explained under the cascade |
+| --------------------------------- | --------------------------------------------- |
+| ![Menu root][shot_menu_root]      | ![Tools submenu][shot_menu_tools]             |
+
+| Fonts as a radio group               | Shaders ticked three levels in          |
+| ------------------------------------ | --------------------------------------- |
+| ![Font radio group][shot_menu_radio] | ![Shader checkboxes][shot_menu_cascade] |
+
+<details>
+
+<summary>The syntax, for when you edit the tree</summary>
 
 ```conf
 g cycle interpolation   #! Video @movie > Interpolation @animation ?Resamples frames to the display rate
 #                       #! Video > ---
 ```
 
-| Token   | Does                                                                                      |
-| ------- | ----------------------------------------------------------------------------------------- |
-| `@name` | A [Material Icons Rounded][icons] ligature, on any part of the path                       |
-| `?text` | What the entry does, shown under the menu on hover, next to the command it runs            |
-| `---`   | A separator under the last entry of the level it sits in, so `Video > ---`, one level up   |
+| Token   | Does                                                                                     |
+| ------- | ---------------------------------------------------------------------------------------- |
+| `@name` | A [Material Icons Rounded][icons] ligature, on any part of the path                      |
+| `?text` | What the entry does, shown under the menu on hover, next to the command it runs          |
+| `---`   | A separator under the last entry of the level it sits in, so `Video > ---`, one level up |
 
-Entries that carry a state draw it instead of their icon, read from mpv each time the menu opens: `cycle <prop>`, `af toggle` and `change-list glsl-shaders toggle` become checkboxes, while entries setting the same property with `set <prop> <value>` become a radio group. Those keep the menu open when clicked and redraw in place, so a shader chain can be built in one visit.
+</details>
+
+Entries that carry a state draw it instead of their icon, re-read on open: `cycle <prop>`, `af toggle` and `change-list glsl-shaders toggle` become checkboxes, while entries setting the same property with `set <prop> <value>` become a radio group. Those keep the menu open when clicked and redraw in place, so a shader chain can be built in one visit.
 
 Bound to `MBTN_RIGHT`, which anchors it at the pointer, and to `MENU` and the uosc menu button, which open it centred.
+
+### [`sub-font.lua`][sub_font]
+
+One font choice, whatever the subtitle file turns out to be. Plain text subtitles carry no styling, so mpv draws them with `sub-font`; ASS scripts carry their own styles and only listen to `sub-ass-style-overrides`, which does nothing for plain text.
+
+This mirrors `sub-font` into a `FontName` override, leaving other overrides alone, so `F8` and `Subtitle > Font` land on both. `script-message-to sub_font use-file-font` drops the override again, for when an ASS script should use the typeface it names. ASS styling only gives way when `sub-ass-override` is `yes` or higher, which is what `u` toggles.
 
 ### [`reset-all.lua`][reset_all]
 
 `ALT+F5` puts playback back to a fresh-start state without reloading the file: zoom, pan, aspect, rotation, panscan, speed, both delays, subtitle scale, position and visibility, and the colour controls, then clears `glsl-shaders`. Volume and mute are left alone, so a reset never blasts audio.
-
-## The uosc theme
-
-Moonlight: dark, low-contrast, chrome kept thin. Set in [`uosc.conf`][uosc_conf].
-
-| Role              | Hex       | Used for                       |
-| ----------------- | --------- | ------------------------------ |
-| `foreground`      | `#ced9ff` | Timeline fill, active controls |
-| `foreground_text` | `#0d0e17` | Text on top of that fill       |
-| `background`      | `#191726` | Menus, tooltips, bars          |
-| `background_text` | `#f8eaf8` | Text on those surfaces         |
-| `curtain`         | `#0d0e17` | Dim behind open menus          |
-| `success`         | `#49ef95` | Positive feedback              |
-| `error`           | `#ca5f71` | Failures                       |
-
-Shape matters as much: `timeline_style=bar` at 20px, `top_bar=no-border`, `border_radius=6`, `font_scale=1.18`, `font_bold=yes`. Most surfaces sit under full opacity; the title is transparent, so nothing floats over the video. Menus run at `submenu=1` opacity, so every open level reads as one surface rather than fading into the background.
-
-<p align="center">
-  <img alt="Playback with nothing but the minimized timeline" src="assets/uosc-minimal.png" width="49%"/>
-  &nbsp;&nbsp;
-  <img alt="The chrome brought up: top bar, controls and timeline" src="assets/uosc-chrome.png" width="49%"/>
-</p>
-
-At rest only the minimized timeline shows; `TAB` toggles the interface as a whole, `SHIFT+TAB` toggles that last bar. The timeline colours the ranges it recognises, so the OP, the ED and the preview read as bands rather than as chapter ticks: `chapter_ranges` above, with `chapter_range_patterns` teaching it the shorthand titles releases actually use.
-
-### The menu patch
-
-uosc centres whichever menu level is current and slides the whole stack to get there, so walking a path moves everything under the pointer. [`patches/uosc-cascade-menu.patch`][uosc_patch] makes it behave like a native context menu instead:
-
-- the root opens where you clicked, and each submenu lines up with the item that opens it
-- levels are placed by depth, so opening or leaving one never moves the others
-- resting on an item walks in, resting on a parent column walks back out, no click needed; a pointer still travelling is ignored, so passing over an item never opens it
-- the hovered entry's description and command are drawn under the menu, on top of every level
-
-The uosc folder is gitignored and its own updater overwrites it, so the patch is kept as a file rather than as edits in the tree. Run `bash patches/apply.sh` after every uosc update; it skips patches already in place.
 
 ## Configuration
 
@@ -148,12 +155,11 @@ The uosc folder is gitignored and its own updater overwrites it, so the patch is
 | [`profiles.conf`][profile_conf] | Conditional profiles                                                                           |
 | [`fonts.conf`][fonts_conf]      | Legacy; loaded Windows fonts before `fonts/` replaced it                                       |
 
-<p align="center">
-  <img alt="input_conf_1" src="https://github.com/user-attachments/assets/48b1bea8-c424-41ef-915d-a61575affdac" width="49%"/>
-  <img alt="input_conf_2" src="https://github.com/user-attachments/assets/d426835c-f2d8-450a-8a78-7580ca77bc85" width="49%"/>
-</p>
+| Bindings grouped by keyboard row             | The menu, written on the same lines       |
+| -------------------------------------------- | ----------------------------------------- |
+| ![input.conf, function rows][shot_conf_keys] | ![input.conf, menu block][shot_conf_menu] |
 
-`input.conf` is the piece I put the most into: every binding mpv accepts written out as a comment, grouped by keyboard row, with mine active among them, then the shader keys and the uosc menu. Of all the ones I read for inspiration, none were this complete.
+`input.conf` is the piece I put the most into: mine active among the commented ones, then the shader keys and the uosc menu. Of all the configs I read for inspiration, none were this complete.
 
 `profiles.conf` swaps the shader chain and subtitle styling when the path contains `Animation`, plus profiles for audio-only files and upscaling.
 
@@ -179,6 +185,10 @@ flowchart TB
   opens --> plays --> ends
 ```
 
+<details>
+
+<summary>The thirteen scripts I did not write</summary>
+
 | Script                                   | Source                            | What it does                                            |
 | ---------------------------------------- | --------------------------------- | ------------------------------------------------------- |
 | [`anilistUpdater`][anilist]              | [AzuredBlue][anilist_src]         | Marks the episode watched on AniList at 85%             |
@@ -195,6 +205,8 @@ flowchart TB
 | [`thumbfast.lua`][thumbfast]             | [po5][thumbfast_src]              | Seekbar hover thumbnails                                |
 | [`watched-folder.lua`][watched_folder]   | mine                              | Moves a finished file to a "watched" folder             |
 
+</details>
+
 Several carry local patches, `thumbfast.lua` most of all.
 
 `watched-folder.lua` has two known bugs: it fires when you switch files without finishing, and it skips the last file in a playlist.
@@ -209,10 +221,24 @@ Tried and dropped, kept for reference: `autodeint.lua`, `better-chapter.lua`, `i
 
 ## Shaders and fonts
 
-Shaders, [Anime4K][Anime4k] among them, are too large to commit; [`shaders_list.txt`][shaders_list] names them all. Fonts sit in `fonts/` because the Windows font folder loads slower.
+Shaders, [Anime4K][Anime4k] among them, are too large to commit; [`shaders_list.txt`][shaders_list] names them. Fonts sit in `fonts/`, which loads faster than the Windows font folder.
 
 <!-- URLS -->
 
+[shot_playing]: assets/mpv-playing.png
+[shot_map_gif]: assets/keybind-visualizer-and-sub-seek.gif
+[shot_map_search]: assets/keybind-visualizer-search.png
+[shot_sub_seek]: assets/sub-seek.png
+[shot_sub_search]: assets/sub-seek-search.png
+[shot_menu_root]: assets/uosc-menu-root.png
+[shot_menu_tools]: assets/uosc-menu-tools.png
+[shot_menu_radio]: assets/uosc-menu-radio.png
+[shot_menu_cascade]: assets/uosc-menu-cascade.png
+[shot_minimal]: assets/uosc-minimal.png
+[shot_interface]: assets/uosc-chrome.png
+[shot_conf_keys]: assets/input-conf-keys.png
+[shot_conf_menu]: assets/input-conf-menu.png
+[patches_dir]: ./patches
 [keybind_visualizer]: ./portable_config/scripts/keybind-visualizer.lua
 [keybind_visualizer_conf]: ./portable_config/script-opts/keybind-visualizer.conf
 [keybind_visualizer_layouts]: ./portable_config/script-opts/keybind-visualizer-layouts.json
@@ -238,8 +264,10 @@ Shaders, [Anime4K][Anime4k] among them, are too large to commit; [`shaders_list.
 [vf_bypass]: ./portable_config/scripts/reactive_vf_bypass.lua
 [allecsc]: https://github.com/allecsc/mpv-qol-scripts
 [reset_all]: ./portable_config/scripts/reset-all.lua
+[sub_font]: ./portable_config/scripts/sub-font.lua
 [uosc_menu]: ./portable_config/scripts/uosc-menu.lua
 [uosc_patch]: ./patches/uosc-cascade-menu.patch
+[apply_py]: ./patches/apply.py
 [restart_mpv]: ./portable_config/scripts/restart-mpv.lua
 [skip_silence]: ./portable_config/scripts/skip-to-silence.lua
 [detuur]: https://github.com/detuur/mpv-scripts
