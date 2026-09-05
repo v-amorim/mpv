@@ -364,7 +364,11 @@ local function binding_desc(b)
 	-- it does, so the command leads and the path trails it
 	local menu = t:match("^%s*#?!%s*(.+)$")
 	if menu then
-		t = b.cmd .. "  \xC2\xB7  " .. menu
+		-- a menu line describes itself after "?"; the rest is a path plus the
+		-- "@icon" tokens that belong to uosc-menu.lua, neither of which says what
+		-- the binding does
+		local described = menu:match("%?%s*(.+)$")
+		t = described or (b.cmd .. "  \xC2\xB7  " .. menu:gsub("%s+@[%w_]+", ""))
 	else
 		t = t:gsub("^#%s*", "")
 	end

@@ -9,7 +9,7 @@ My mpv setup: player settings, a keybind map I keep expanding, a [uosc][UOSC] th
 </p>
 
 > [!NOTE]
-> Two things are deliberately missing: the **shaders**, too large to commit, and the **[uosc][UOSC] folder**, which I keep unmodified from upstream.
+> Two things are deliberately missing: the **shaders**, too large to commit, and the **[uosc][UOSC] folder**, which I take from upstream. uosc carries one local change, kept as a patch in [`patches/`](./patches) rather than as a fork.
 
 ## Install
 
@@ -27,13 +27,13 @@ portable_config/
     script-opts/
         uosc.conf ## the theme
     scripts/
-        uosc/ ## add from upstream
+        uosc/ ## add from upstream, then run patches/apply.sh
     shaders/ ## add your own
 ```
 
 ## Scripts I wrote
 
-Both use the Moonlight palette below.
+Four of them, all on the Moonlight palette below.
 
 <p align="center">
   <img alt="keybind-visualizer and sub-seek" src="assets/keybind-visualizer-and-sub-seek.gif" width="100%"/>
@@ -47,7 +47,7 @@ Bindings are read live from `input-bindings`, so it reflects your `input.conf` p
 
 Just type to search them. The query matches key names, combos, descriptions and commands. Each typed word matches as a substring, as a gapped run inside a single word (`sbdly` finds `sub-delay`) or as word initials, so a scatter of letters never lights up half the keyboard. It lights every matching key in light gray, ranking the hits in the panel and picking out the typed characters inside each description. `BS` erases, `ESC` clears the query and then closes.
 
-A `≡` badge marks anything that also lives in the uosc menu: in the corner of the key, and beside the binding's own line in the panel.
+A `≡` badge marks anything that also lives in the uosc menu: in the corner of the key, and beside the binding's own line in the panel. Those entries describe themselves, so the panel shows the description rather than the raw command.
 
 mpv cannot detect the OS keyboard layout, so layouts live in a JSON file. Pick `ansi`, `iso`, `abnt2`, `jis`, or add your own.
 
@@ -61,6 +61,29 @@ mpv cannot detect the OS keyboard layout, so layouts live in a JSON file. Pick `
 A fullscreen, clickable index of every subtitle line with timestamps, on `F4`. Click a line, or arrow to it and press Enter, to seek there. Like the builtin sub-seek, except you jump anywhere instead of stepping.
 
 mpv exposes no "all subtitle lines" API, so the track is dumped to a temporary `.srt` with ffmpeg and parsed; ASS and embedded subs get flattened on the way.
+
+### [`uosc-menu.lua`][uosc_menu]
+
+uosc builds its menu from the `#!` comments in `input.conf`, but its items get no icon and say nothing about themselves. This reads the same comments, understands two more tokens, and hands uosc the finished menu through its public `open-menu` message, so no uosc file is touched.
+
+```conf
+g cycle interpolation   #! Video @movie > Interpolation @animation ?Resamples frames to the display rate
+#                       #! Video > ---
+```
+
+| Token   | Does                                                                                      |
+| ------- | ----------------------------------------------------------------------------------------- |
+| `@name` | A [Material Icons Rounded][icons] ligature, on any part of the path                       |
+| `?text` | What the entry does, shown under the menu on hover, next to the command it runs            |
+| `---`   | A separator under the last entry of the level it sits in, so `Video > ---`, one level up   |
+
+Entries that carry a state draw it instead of their icon, read from mpv each time the menu opens: `cycle <prop>`, `af toggle` and `change-list glsl-shaders toggle` become checkboxes, while entries setting the same property with `set <prop> <value>` become a radio group. Those keep the menu open when clicked and redraw in place, so a shader chain can be built in one visit.
+
+Bound to `MBTN_RIGHT`, which anchors it at the pointer, and to `MENU` and the uosc menu button, which open it centred.
+
+### [`reset-all.lua`][reset_all]
+
+`ALT+F5` puts playback back to a fresh-start state without reloading the file: zoom, pan, aspect, rotation, panscan, speed, both delays, subtitle scale, position and visibility, and the colour controls, then clears `glsl-shaders`. Volume and mute are left alone, so a reset never blasts audio.
 
 ## The uosc theme
 
@@ -76,7 +99,18 @@ Moonlight: dark, low-contrast, chrome kept thin. Set in [`uosc.conf`][uosc_conf]
 | `success`         | `#49ef95` | Positive feedback              |
 | `error`           | `#ca5f71` | Failures                       |
 
-Shape matters as much: `timeline_style=bar` at 20px, `top_bar=no-border`, `border_radius=2`, `font_scale=1.18`, `font_bold=yes`. Most surfaces sit under full opacity; the title is transparent, so nothing floats over the video.
+Shape matters as much: `timeline_style=bar` at 20px, `top_bar=no-border`, `border_radius=6`, `font_scale=1.18`, `font_bold=yes`. Most surfaces sit under full opacity; the title is transparent, so nothing floats over the video. Menus run at `submenu=1` opacity, so every open level reads as one surface rather than fading into the background.
+
+### The menu patch
+
+uosc centres whichever menu level is current and slides the whole stack to get there, so walking a path moves everything under the pointer. [`patches/uosc-cascade-menu.patch`][uosc_patch] makes it behave like a native context menu instead:
+
+- the root opens where you clicked, and each submenu lines up with the item that opens it
+- levels are placed by depth, so opening or leaving one never moves the others
+- resting on an item walks in, resting on a parent column walks back out, no click needed; a pointer still travelling is ignored, so passing over an item never opens it
+- the hovered entry's description and command are drawn under the menu, on top of every level
+
+The uosc folder is gitignored and its own updater overwrites it, so the patch is kept as a file rather than as edits in the tree. Run `bash patches/apply.sh` after every uosc update; it skips patches already in place.
 
 ## Configuration
 
@@ -126,7 +160,6 @@ flowchart TB
 | [`clipshot.lua`][clipshot]               | [ObserverOfTime][clipshot_src]    | Screenshot straight to the clipboard                    |
 | [`pause-indicator.lua`][pause_indicator] | [CogentRedTester][crt]            | Pause glyph in the corner                               |
 | [`reactive_vf_bypass.lua`][vf_bypass]    | [allecsc][allecsc]                | Keeps the SVP filter chain honest                       |
-| [`reset-all.lua`][reset_all]             | mine                              | `ALT+F5` puts playback back to defaults, no reload      |
 | [`restart-mpv.lua`][restart_mpv]         | mine                              | Reloads the file so config edits apply                  |
 | `skip-chapters.lua`                      | unattributed                      | Auto-skips chapters matching OP, ED, credits or preview |
 | [`skip-to-silence.lua`][skip_silence]    | [detuur][detuur]                  | Jumps to the next silence, usually the OP's end         |
@@ -178,6 +211,8 @@ Shaders, [Anime4K][Anime4k] among them, are too large to commit; [`shaders_list.
 [vf_bypass]: ./portable_config/scripts/reactive_vf_bypass.lua
 [allecsc]: https://github.com/allecsc/mpv-qol-scripts
 [reset_all]: ./portable_config/scripts/reset-all.lua
+[uosc_menu]: ./portable_config/scripts/uosc-menu.lua
+[uosc_patch]: ./patches/uosc-cascade-menu.patch
 [restart_mpv]: ./portable_config/scripts/restart-mpv.lua
 [skip_silence]: ./portable_config/scripts/skip-to-silence.lua
 [detuur]: https://github.com/detuur/mpv-scripts
@@ -188,3 +223,4 @@ Shaders, [Anime4K][Anime4k] among them, are too large to commit; [`shaders_list.
 [thumbfast]: ./portable_config/scripts/thumbfast.lua
 [thumbfast_src]: https://github.com/po5/thumbfast
 [watched_folder]: ./portable_config/scripts/watched-folder.lua
+[icons]: https://fonts.google.com/icons?icon.set=Material+Icons&icon.style=Rounded
