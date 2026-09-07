@@ -112,6 +112,25 @@ local function tooltip_for(description, cmd)
 	return text
 end
 
+-- The comment starts at the first "#" outside quotes. A subtitle colour is
+-- written "#80FFFFFF", so cutting at the first "#" truncates the command.
+local function split_comment(line)
+	local quote
+	for i = 2, #line do
+		local c = line:sub(i, i)
+		if quote then
+			if c == quote then
+				quote = nil
+			end
+		elseif c == '"' or c == "'" then
+			quote = c
+		elseif c == "#" then
+			return line:sub(1, i - 1), line:sub(i)
+		end
+	end
+	return line, ""
+end
+
 -- every input.conf line that carries a "#!" menu comment, commented-out ones
 -- included: those are menu entries that deliberately have no key
 local function read_menu_lines()
@@ -127,8 +146,9 @@ local function read_menu_lines()
 		return out
 	end
 	for line in iterator do
-		local key, cmd, comment = line:match("%s*([%S]+)%s+([^#]*)%s*(.-)%s*$")
-		local menu_path = comment and comment:match("^#!%s*(.+)$")
+		local body, comment = split_comment(line)
+		local key, cmd = body:match("^%s*(%S+)%s+(.*)$")
+		local menu_path = comment:match("^#!%s*(.+)$")
 		-- "#F2" is a disabled binding, not a menu entry
 		if key and menu_path and not (key:sub(1, 1) == "#" and #key > 1) then
 			out[#out + 1] = { key = key, cmd = trim(cmd or ""), path = menu_path }
@@ -154,8 +174,22 @@ local function as_number(value)
 	return tonumber(value)
 end
 
+-- What the entry actually does: the first command, without the prefix saying how
+-- it reports itself. Nearly every binding here starts with `no-osd`, and matching
+-- the raw string would leave all of them without a box.
+local function leading_command(cmd)
+	local part = trim(split_commands(cmd or "")[1] or "")
+	local head, rest = part:match("^(%S+)%s+(.+)$")
+	while head and CMD_PREFIXES[head] do
+		part = rest
+		head, rest = part:match("^(%S+)%s+(.+)$")
+	end
+	return part
+end
+
 ---@return table|nil state to track for this command
-local function state_of(cmd)
+local function state_of(raw)
+	local cmd = leading_command(raw)
 	local prop = cmd:match("^cycle%s+([%w-_]+)%s*$")
 	if prop then
 		return { kind = "toggle", prop = prop }
