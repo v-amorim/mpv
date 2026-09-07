@@ -1,0 +1,11 @@
+# Git for Windows ships core.autocrlf=true in its system config, which checks
+# every text file out as CRLF. That fights patches/apply.py, which writes uosc's
+# sources back as LF the way upstream ships them, and it makes any regex anchored
+# on "$" miss the trailing \r. The repo is LF on both sides instead.
+* text=auto eol=lf
+
+*.png binary
+*.gif binary
+*.jpg binary
+*.ttf binary
+*.otf binary
