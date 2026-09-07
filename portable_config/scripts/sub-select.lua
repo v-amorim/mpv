@@ -108,6 +108,15 @@ end
 
 setup_prefs()
 
+-- sub-select-menu.lua draws the rules and marks the one that won; this script is
+-- the only place that knows either, and an upstream pull reverts these lines
+local function publish(key, value)
+	mp.set_property_native("user-data/sub-select/" .. key, value)
+end
+
+publish("prefs", prefs)
+publish("enabled", ENABLED)
+
 --evaluates and runs the given string in both Lua 5.1 and 5.2
 --the name argument is used for error reporting
 --provides the mpv modules and the fb module to the string
@@ -328,7 +337,7 @@ local function find_valid_tracks(manual_audio)
 	end
 
 	--searching the selection presets for one that applies to this track
-	for _, pref in ipairs(prefs) do
+	for pref_index, pref in ipairs(prefs) do
 		msg.debug("checking pref:", utils.to_string(pref))
 
 		for _, audio_track in ipairs(audio_track_list) do
@@ -357,7 +366,7 @@ local function find_valid_tracks(manual_audio)
 						then
 							msg.verbose("valid audio preference found:", utils.to_string(pref.alang))
 							msg.verbose("valid subtitle preference found:", utils.to_string(pref.slang))
-							return aid, sub_track and sub_track.id
+							return aid, sub_track and sub_track.id, pref_index
 						end
 					end
 				end
@@ -374,7 +383,8 @@ end
 
 --extract the language code from an audio track node and pass it to select_subtitles
 local function select_tracks(audio)
-	local aid, sid = find_valid_tracks(audio)
+	local aid, sid, matched = find_valid_tracks(audio)
+	publish("matched", matched)
 	if sid then
 		set_track("sid", sid == 0 and "no" or sid)
 	end
@@ -504,6 +514,7 @@ mp.register_script_message("sub-select", function(arg)
 	elseif arg == "disable" then
 		ENABLED = false
 	end
+	publish("enabled", ENABLED)
 	local str = "sub-select: " .. (ENABLED and "enabled" or "disabled")
 	mp.osd_message(str)
 
