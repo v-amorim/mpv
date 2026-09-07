@@ -202,6 +202,16 @@ local function temp_srt()
 	return (dir .. "/mpv_sub_seek.srt"):gsub("\\", "/")
 end
 
+-- mpv reports "path" as it was given, so it is already complete for an absolute path or a
+-- URL; joining those to the working directory points ffmpeg at a folder that does not exist
+local function video_path()
+	local path = mp.get_property("path") or ""
+	if path:match("^%a:[/\\]") or path:match("^[/\\]") or path:match("^%a[%w+.-]*://") then
+		return path
+	end
+	return mp.get_property("working-directory") .. "/" .. path
+end
+
 -- extract the selected track to a temp .srt, parse it, then call done(subs)
 local function load_subs(done)
 	local track = selected_sub_track()
@@ -215,7 +225,7 @@ local function load_subs(done)
 	if track.external and track.ext_file then
 		args = { ffmpeg_bin(), "-y", "-hide_banner", "-loglevel", "error", "-i", track.ext_file, out }
 	else
-		local video = mp.get_property("working-directory") .. "/" .. mp.get_property("filename")
+		local video = video_path()
 		if not track.ff_index then
 			mp.osd_message("sub-seek: cannot locate subtitle stream", 2)
 			return
