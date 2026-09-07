@@ -1,62 +1,39 @@
 # MPV
 
-My mpv setup: player settings, a keybind map I keep expanding, a [uosc][UOSC] theme, and the scripts I keep loaded.
+My mpv setup: player settings, a keybind map, a [uosc][UOSC] theme, and the scripts I run.
 
 | Playing, with the interface showing |
 | ----------------------------------- |
 | ![mpv playing][shot_playing]        |
 
 > [!IMPORTANT]
-> Two things are deliberately missing: the **shaders**, too large to commit, and the **[uosc][UOSC] folder**, taken from upstream. uosc carries one local change, kept in [`patches/`][patches_dir] rather than as a fork: run `just patch` after installing or updating it, or the menu reverts to stock.
+> Two things are deliberately missing: the **shaders**, too large to commit, and the **[uosc][UOSC] folder**, taken from upstream. uosc carries one local change kept in [`patches/`][patches_dir] rather than a fork: run `just patch` after installing or updating it, or the menu reverts to stock.
 
 ## The uosc theme
 
-Moonlight: dark, low-contrast, the interface kept thin, set in [`uosc.conf`][uosc_conf].
-
-| Role              | Hex       | Used for                       |
-| ----------------- | --------- | ------------------------------ |
-| `foreground`      | `#ced9ff` | Timeline fill, active controls |
-| `foreground_text` | `#0d0e17` | Text on top of that fill       |
-| `background`      | `#191726` | Menus, tooltips, bars          |
-| `background_text` | `#f8eaf8` | Text on those surfaces         |
-| `curtain`         | `#0d0e17` | Dim behind open menus          |
-| `success`         | `#49ef95` | Positive feedback              |
-| `error`           | `#ca5f71` | Failures                       |
-
-Shape matters as much: `timeline_style=bar` at 20px, `top_bar=no-border`, `border_radius=6`, `font_scale=1.18`, `font_bold=yes`. Most surfaces stop short of full opacity, and the title bar is fully transparent, so nothing floats over the video. Menus run at `submenu=1`, so every open level reads as one surface instead of fading back.
+Moonlight: dark, low-contrast, thin, set in [`uosc.conf`][uosc_conf].
 
 | At rest: the minimized timeline alone | Woken: top bar, controls, timeline |
 | ------------------------------------- | ---------------------------------- |
 | ![Minimized timeline][shot_minimal]   | ![Full interface][shot_interface]  |
 
-`TAB` toggles the whole interface, `SHIFT+TAB` just that last bar. The timeline colours the ranges it recognises, so the OP, the ED and the preview read as bands rather than chapter ticks: `chapter_ranges` sets the colours, `chapter_range_patterns` teaches it the shorthand titles releases use.
+`TAB` toggles the whole interface, `SHIFT+TAB` just the bottom bar. The timeline colours recognised ranges, so the OP, the ED and the preview read as bands rather than ticks.
 
 ### The menu patch
 
-uosc centres whichever menu level is current and slides the whole stack to get there, so walking a path moves everything under the pointer. [`patches/uosc-cascade-menu.patch`][uosc_patch] makes it behave like a native context menu instead:
-
-- the root opens where you clicked, and each submenu lines up with the item that opens it
-- levels are placed by depth, so opening or leaving one never moves the others
-- resting on an item walks in, resting on a parent column walks back out, no click needed; a pointer still travelling is ignored, so passing over an item never opens it
-- the hovered entry's description and command are drawn under the menu, on top of every level
-
-The folder is gitignored and uosc's updater overwrites it, so the change lives as a patch rather than as edits in the tree. [`patches/apply.py`][apply_py] applies it with the standard library alone.
+[`patches/uosc-cascade-menu.patch`][uosc_patch] makes uosc's menu behave like a native context menu: opens where you clicked, cascades by depth instead of centring and sliding, walks in and out on hover. The folder is gitignored, so [`patches/apply.py`][apply_py] reapplies it after every uosc update.
 
 ## Install
 
-`just first-run` walks the whole thing in nine stages: find or fetch mpv, unpack uosc and patch it, unpack the shaders, pick your keyboard layout, install the AniList packages, link your AniList account, put the config where mpv reads it. uosc, the shaders and the mpv build itself are pulled from their own releases, so nothing has to be downloaded or unzipped by hand. Every stage can be skipped, and re-running it is safe. [`first-run.py`][first_run] is standard library only, so `python first-run.py` works with no `just` and nothing installed.
+`just first-run` sets up mpv, uosc, the shaders, your keyboard layout and AniList automatically, then shows a receipt before anything runs. [`first-run.py`][first_run] is standard library only: `python first-run.py` works with no `just` installed.
 
-It asks first where the config should live:
+| Mode       | Where mpv goes            | The config                          |
+| ---------- | -------------------------- | ------------------------------------ |
+| `here`     | this repo folder           | read in place, edits are live at once |
+| `system`   | the mpv you already have   | copied beside that executable       |
+| `portable` | a folder you name          | copied there, nothing else touched  |
 
-| Mode       | Where mpv goes                | The config                                              |
-| ---------- | ----------------------------- | ------------------------------------------------------- |
-| `here`     | into this repo folder         | read where it already sits, so an edit is live at once   |
-| `system`   | the mpv you already have      | copied next to that executable                          |
-| `portable` | a folder you name             | copied there, leaving anything existing alone            |
-
-`here` is the one to pick if you plan to keep editing the config: `portable_config/` is already beside the executable, so there is nothing to copy and `just patch` lands on the uosc that mpv actually loads. The mpv payload in the repo root is gitignored.
-
-Nothing is downloaded or written while it asks. The last stage is a receipt of every answer and every action queued, and only a yes there runs them.
+Pick `here` if you'll keep editing the config.
 
 | Start                          | The first question                     | The receipt, before anything runs  |
 | ------------------------------ | -------------------------------------- | ---------------------------------- |
@@ -72,9 +49,9 @@ Nothing is downloaded or written while it asks. The last stage is a receipt of e
 | [uv][uv]     | `just setup`, which vendors `requests` and `guessit`                   | `first-run.py` falls back to `pip`                |
 | [just][just] | the recipes below                                                      | run the command inside each recipe by hand        |
 
-mpv is not in this repo, and on Windows it has no official binary: mpv.io calls every Windows package an unofficial third-party build, apart from a first-party CI build meant for testing. Pick one from [mpv.io/installation][mpv_install].
+mpv has no official Windows binary; pick a build from [mpv.io/installation][mpv_install].
 
-By hand instead: copy `portable_config/` next to `mpv.exe`. You supply the two folders marked below.
+By hand instead: copy `portable_config/` next to `mpv.exe`, add uosc and shaders yourself.
 
 ```mermaid
 %%{init: {"theme": "base", "themeVariables": {"darkMode": true, "background": "#0d0e17", "textColor": "#f8eaf8", "treeView": {"labelColor": "#f8eaf8", "lineColor": "#30363d", "iconColor": "#8b949e"}}}}%%
@@ -92,11 +69,7 @@ portable_config/
     shaders/ ## add your own
 ```
 
-The AniList scripts import `requests` and `guessit`. `just setup` installs both into `scripts/anilistUpdater/vendor/` with [uv][uv], so they do not depend on whatever `Lib` folder happens to sit next to `mpv.exe`; `just setup-check` reports whether mpv can import them. The folder is gitignored.
-
-Shaders go under `shaders/`, and the Anime4K ones under `shaders/Anime4K/`: that folder name is written into `profiles.conf` and every `CTRL+1` through `CTRL+7` binding, so a flat `shaders/` folder loads nothing.
-
-`F6` draws the keyboard named in [`keybind-visualizer.conf`][keybind_visualizer_conf], and it ships set to `abnt2`, a Brazilian layout. Change it to `ansi`, `iso` or `jis` to see your own keys.
+Anime4K shaders must sit in `shaders/Anime4K/`, the name `profiles.conf` and `CTRL+1` through `CTRL+7` expect. `F6`'s keyboard layout is set in [`keybind-visualizer.conf`][keybind_visualizer_conf], shipped as `abnt2` (Brazilian); change it to `ansi`, `iso` or `jis`.
 
 ## Scripts I wrote
 
@@ -104,23 +77,13 @@ Twelve, the interface ones all on the Moonlight palette.
 
 ### [`keybind-visualizer.lua`][keybind_visualizer]
 
-An on-screen keyboard on `F6`. Hover a key to see what it does; `ESC` closes it.
-
-Bindings are read live from `input-bindings`, with no list to maintain. `mpv.conf` sets `input-builtin-bindings=no`, so what the map draws is this config and its scripts and nothing of mpv's own: `input.conf` is the whole keymap.
+An on-screen keyboard on `F6`, read live from `input-bindings`. Hover a key or type to search; `≡` marks anything that also lives in the uosc menu.
 
 | Searching every binding for `delay`         | Hovering a single key                     |
 | ------------------------------------------- | ----------------------------------------- |
 | ![Keyboard map, searching][shot_map_search] | ![Keyboard map, hovering][shot_map_hover] |
 
-Type to search. The query matches key names, combos, descriptions and commands. Each word matches as a substring, as a gapped run inside one word, or as the initials of consecutive words, so a scatter of letters never lights up half the keyboard. A run may not wander past the end of a word: `sub-delay` is two words to the tokenizer, so `sd` reaches it through the initials rule while `sbdly` matches nothing. Matches are picked out inside each description. `BS` erases, `ESC` clears the query and then closes.
-
-Results come as three columns: the combo, what it runs, and what that means. The command column drops the `no-osd` and `expand-properties` prefixes and the `osd_theme` message, and a binding running several commands shows the first with a `(+2)` for the rest.
-
-Descriptions come from the trailing `#` comment on each `input.conf` line, which mpv hands back through `input-bindings`. A uosc menu line describes itself after `?` instead, since its `#!` comment already holds the menu path; parents in that path carry descriptions of their own, so the one after the last `?` is the entry's.
-
-A `≡` badge marks anything that also lives in the uosc menu: in the corner of the key, and beside the binding's own line in the panel.
-
-mpv cannot detect the OS keyboard layout, so layouts live in a JSON file. Pick `ansi`, `iso`, `abnt2`, `jis`, or add your own.
+mpv can't detect your keyboard layout: pick `ansi`, `iso`, `abnt2`, `jis`, or add your own.
 
 | File                                                            | Purpose                                                   |
 | --------------------------------------------------------------- | --------------------------------------------------------- |
@@ -129,11 +92,7 @@ mpv cannot detect the OS keyboard layout, so layouts live in a JSON file. Pick `
 
 ### [`sub-seek.lua`][sub_seek]
 
-A fullscreen, clickable index of every subtitle line with timestamps, on `F4`. Click a line, or arrow to it and press Enter. The builtin sub-seek steps one line at a time; this jumps anywhere.
-
-Type to filter: every word has to appear in the line, so `long line` keeps only those carrying both, and the hits are picked out where they sit. `BS` erases, `ESC` clears the query and then closes.
-
-mpv exposes no "all subtitle lines" API, so the track is dumped to a temporary `.srt` with ffmpeg and parsed; ASS and embedded subs are flattened on the way.
+Fullscreen, clickable index of every subtitle line with timestamps, on `F4`. Type to filter, click a line or arrow to it and press Enter.
 
 | Every line of the track, the one playing highlighted | Filtered down to the lines that match         |
 | ---------------------------------------------------- | --------------------------------------------- |
@@ -141,7 +100,7 @@ mpv exposes no "all subtitle lines" API, so the track is dumped to a temporary `
 
 ### [`uosc-menu.lua`][uosc_menu]
 
-uosc builds its menu from the `#!` comments in `input.conf`, but those items get no icon and say nothing about themselves. This reads the same comments, understands two more tokens, and hands uosc the finished menu through its public `open-menu` message, so no uosc file is touched.
+Builds uosc's menu from `input.conf`'s `#!` comments, adding icons and hover descriptions with two extra tokens; nothing in uosc itself is touched. Entries become checkboxes or radio groups automatically, re-read every time the menu opens.
 
 | Every entry with its icon and key | The hovered entry explained under the cascade |
 | --------------------------------- | --------------------------------------------- |
@@ -176,67 +135,49 @@ g cycle interpolation   #! Video @movie > Interpolation @animation ?Resamples fr
 
 </details>
 
-Entries carrying a state draw it instead of their icon, re-read on open: `cycle <prop>`, `af toggle` and `change-list glsl-shaders toggle` become checkboxes, while entries setting the same property with `set <prop> <value>` become a radio group. Those keep the menu open when clicked and redraw in place, so a shader chain can be built in one visit.
-
-The state is read from the first command on the line, with the prefix saying how it reports itself stripped first. Almost every binding here opens with `no-osd`, so matching the raw string left the whole tree stateless. Comments are found at the first `#` outside quotes, since a subtitle colour is written `"#80FFFFFF"` and cutting at the first `#` truncates the command.
-
-Bound to `MBTN_RIGHT`, which anchors it at the pointer, and to `MENU` and the uosc menu button, which open it centred.
+Right-click opens it at the pointer; `MENU` or the uosc menu button open it centred.
 
 ### [`chapters-menu.lua`][chapters_menu]
 
-A uosc front end for [`chapters.lua`][chapters] on `c`, which ships eleven bindings and no way to see what any of them would do. Every chapter with its timestamp, the one playing marked; activating a row seeks and leaves the menu open, so you can walk the file and then act.
+A uosc front end for [`chapters.lua`][chapters] on `c`: every chapter listed with its timestamp, add/rename/delete from the menu, and a check against YouTube's chapter rules.
 
 | Every chapter, and what can be done to them | The YouTube rules, checked one by one |
 | ------------------------------------------- | ------------------------------------- |
 | ![Chapter menu][shot_chapters]              | ![YouTube check][shot_chapters_check] |
 
-Adding, renaming and deleting are done here rather than delegated. `chapters.lua` asks for a title through `mp.input`, which drops mpv's console over the video, and it acts on the chapter playing rather than the one you picked. Renaming uses a uosc palette prefilled with the current title instead, on `search_debounce = 'submit'` so nothing fires until Enter.
-
-Exporting, remuxing and the in-place mkv rewrite are `chapters.lua`'s own and are called by name. Its YouTube validation, which used to dump twenty seconds of tab-aligned OSD text, is drawn as pass and fail rows, listing any chapter too short to qualify.
-
 ### [`sub-select-menu.lua`][sub_select_menu]
 
-[`sub-select.lua`][sub_select] picks a subtitle track from the rules in `sub-select.json` and says nothing about it: not which rule won, not whether it ran at all. `ALT+SHIFT+s` draws the rules in plain words, marks the one that matched, names the track it chose, and offers a switch to stop it choosing.
+Shows which [`sub-select.lua`][sub_select] rule picked the current subtitle track, on `ALT+SHIFT+s`, with a switch to turn it off.
 
 | Which rule picked the track showing right now |
 | --------------------------------------------- |
 | ![Automatic subtitle selection][shot_subsel]  |
 
-The rules, the match and the on/off state reach the menu from `sub-select.lua` over `user-data`, which is the only place any of them is known. That is six added lines in a vendored script, and an upstream pull reverts them.
-
 ### [`sub-font.lua`][sub_font]
 
-One font choice, whichever kind of subtitle file turns up. Plain text subtitles carry no styling, so mpv draws them with `sub-font`; ASS scripts carry their own styles and only listen to `sub-ass-style-overrides`, which does nothing for plain text.
-
-This mirrors `sub-font` into a `FontName` override, leaving other overrides alone, so `F8` and `Subtitle > Font` land on both. `script-message-to sub_font use-file-font` drops the override again, for when an ASS script should use the typeface it names. ASS styling only gives way when `sub-ass-override` is `yes` or higher, which `u` toggles.
+One font for every subtitle, ASS or plain text: mirrors `sub-font` into a `FontName` override so `F8` and `Subtitle > Font` pick it consistently. `u` toggles whether ASS styling can override it.
 
 ### [`osd-theme.lua`][osd_theme]
 
-One shape for every message a keybind puts on screen, so `sub-ass-override force` never reaches the screen as bare `force`. Bindings call `script-message-to osd_theme say "<label>" "<state>" "<detail>"`. The script paints the label, colours the state green or red for a plain on or off, and sets the detail below it in a smaller, quieter line saying what the setting does.
+One shape and palette for every on-screen message, used by every script here instead of raw `mp.osd_message`.
 
 | The message a keybind leaves on screen | Work that takes a while, with the same spinner uosc uses |
 | -------------------------------------- | -------------------------------------------------------- |
 | ![Themed OSD message][shot_osd_theme]  | ![Busy message][shot_osd_busy]                           |
 
-Scripts call the same message rather than `mp.osd_message`, so `F4`, `ALT+F5`, `F8` and the menu all speak in this shape too: `mp.commandv("script-message-to", "osd_theme", "say", label, state, detail)`.
-
-A second message, `busy`, stays on screen instead of fading, for work slow enough that a message which disappeared would read as nothing happening. It turns the `autorenew` glyph from the icon font uosc already ships, so a wait here spins exactly what a uosc menu spins, and a later `say` both replaces the text and stops the spinner. Repeated calls only swap the words, so progress can climb without the icon stuttering. A third, `clear`, takes the message away without printing another, for a script like `sub-seek.lua` that spins while it works and then draws its own full screen list over the same corner.
-
-Colours are the blues and greys of the [Moonlight palette][moonlight] my shell prompt uses, held at the top of the file, so retinting everything is one edit there. Outline and shadow take the palette's background rather than black. Bindings prefix the mutating command with `no-osd` so mpv's own readout does not double up, and prefix the message with `expand-properties` when the state comes from a property.
+`busy` spins for slow work instead of fading; `clear` removes a message outright, for a script that draws its own interface next.
 
 ### [`reset-all.lua`][reset_all]
 
-`ALT+F5` returns playback to a fresh-start state without reloading the file: zoom, pan, aspect, rotation, panscan, speed, both delays, subtitle scale, position and visibility, and the colour controls, then clears `glsl-shaders`. Volume and mute are left alone, so a reset never blasts audio.
+`ALT+F5` resets playback (zoom, pan, aspect, speed, delays, subtitles, colour, shaders) without reloading the file. Volume and mute are left alone.
 
 ### [`pause-indicator.lua`][pause_indicator]
 
-A pause glyph in the top right corner. Descended from [CogentRedTester's][crt] version, which drew a `⏸` mid-screen in whatever system font mpv fell back to, so the box and bars sat off centre.
-
-This draws the icon from the font uosc already ships, at a size and margin derived from the current OSD, so it stays symmetric and matches the rest of the interface. The original is kept in `.unused/pause-indicator-middle.lua`.
+A pause glyph in the top right, replacing [CogentRedTester's][crt] mid-screen version with one that matches the interface.
 
 ### [`skip-chapters.lua`][skip_chapters]
 
-Auto-skips chapters titled as an opening, ending, credits or preview, with `F11` turning it off when a release names its chapters badly. The patterns are lowercase and anchored, so `^op$` does not swallow a chapter called "Opening Ceremony". Both the toggle and the skip itself announce through `osd-theme`, naming the chapter being jumped.
+Auto-skips chapters named opening, ending, credits or preview; `F11` turns it off for a badly named release.
 
 ### [`restart-mpv.lua`][restart_mpv]
 
@@ -244,31 +185,25 @@ Auto-skips chapters titled as an opening, ending, credits or preview, with `F11`
 
 ### [`watched-folder.lua`][watched_folder]
 
-`F10` toggles it; when on, a finished file is moved into a `watched` subfolder. The toggle draws through `osd-theme` and names the file queued to move, since the move itself only happens once the next file starts. Two known bugs: it fires when you switch files without finishing, and it skips the last file in a playlist.
+`F10` toggles it: a finished file moves into `watched/` once the next file starts. Two known bugs: fires on an unfinished switch, skips a playlist's last file.
 
 ## AniList, rewritten around the player
 
-[`anilistUpdater`][anilist] is [AzuredBlue's][anilist_src], and marks the episode watched at 85%. Everything below is local, so an upstream pull reverts it.
+[`anilistUpdater`][anilist] is [AzuredBlue's][anilist_src], marking episodes watched at 85%. Everything below is local, so an upstream pull reverts it.
 
 | Everything the panel knows about the file playing |
 | ------------------------------------------------- |
 | ![AniList panel][shot_anilist]                    |
 
-`n` opens the panel; `CTRL+n` marks the episode watched without opening anything. The panel names the match, the status and progress saved on your list, and, for a series still airing, when the next episode lands. Progress reads `4/10` once a series has finished, `4/10+` while it is still running, and a bare number when nothing knows the total.
+`n` opens the panel; `CTRL+n` marks it watched without opening anything. Wrong guess? Search or paste a URL/id from the same panel.
 
-A wrong guess is fixed from the same panel: search AniList by name, or paste a URL or a bare id into the search box. The correction is stored against a key built from what guessit parsed, the episode title and the season, so pinning one entry never drags an unrelated season of the same show along with it.
-
-To get a token, open [the authorize link][anilist_auth] and approve it: the client id in that URL is the public one [AzuredBlue's README][anilist_src] hands out, so there is no application to register. AniList then shows the token on the page; copy it and press `CTRL+n` on the panel's link row.
-
-The token is no longer a text file next to the scripts. `CTRL+n` on the link row reads it from the clipboard and hands it to Python over stdin rather than argv, keeping it out of the process list, and it is stored with `CryptProtectData` under `%LOCALAPPDATA%\mpv-anilist\`. That is outside the config tree, so it cannot be committed or synced, and it is tied to the Windows account, so a copied file is inert on another machine. Moving the config to a new PC means entering the token again. When AniList rejects an expired token the panel says so and points at the row that fixes it.
-
-One fix reached the API layer: the original sent the token only on writes, so every lookup went out unauthenticated and came back `403`. It is sent on every request now.
+Token setup: open [the authorize link][anilist_auth], approve it, copy the token AniList shows, press `CTRL+n` on the panel's link row. Stored encrypted under `%LOCALAPPDATA%\mpv-anilist\` rather than as a plain text file, tied to the Windows account.
 
 ## Configuration
 
 | File                            | What it holds                                                                                  |
 | ------------------------------- | ---------------------------------------------------------------------------------------------- |
-| [`mpv.conf`][mpv_conf]          | Preferred languages, OSC and window behaviour, subtitle styling, video output and tone mapping |
+| [`mpv.conf`][mpv_conf]          | Languages, OSC/window behaviour, subtitle styling, video output, tone mapping                  |
 | [`input.conf`][input_conf]      | Every keybind, plus the uosc menu                                                              |
 | [`profiles.conf`][profile_conf] | Conditional profiles                                                                           |
 | [`fonts.conf`][fonts_conf]      | Legacy; loaded Windows fonts before `fonts/` replaced it                                       |
@@ -276,8 +211,6 @@ One fix reached the API layer: the original sent the token only on writes, so ev
 | Bindings grouped by keyboard row             | The menu, written on the same lines       |
 | -------------------------------------------- | ----------------------------------------- |
 | ![input.conf, function rows][shot_conf_keys] | ![input.conf, menu block][shot_conf_menu] |
-
-`input.conf` is the piece I put the most into: my active bindings among the commented ones I keep for reference, then the shader keys and the uosc menu.
 
 `profiles.conf` swaps the shader chain and subtitle styling when the path contains `Animation`, plus profiles for audio-only files and upscaling.
 
@@ -324,7 +257,7 @@ Each carries an added header line naming its upstream, so a file on disk always 
 
 </details>
 
-Everything here is formatted with the same [stylua][stylua] settings as the rest of the repo, so a plain diff against upstream is mostly reindentation. Run upstream through stylua first and only the changes named above remain.
+Formatted with the repo's [stylua][stylua] settings, so a diff against upstream is mostly reindentation.
 
 <details>
 
@@ -415,7 +348,6 @@ Shaders, [Anime4K][Anime4k] among them, are too large to commit; [`shaders_list.
 [thumbfast_src]: https://github.com/po5/thumbfast
 [watched_folder]: ./portable_config/scripts/watched-folder.lua
 [icons]: https://fonts.google.com/icons?icon.set=Material+Icons&icon.style=Rounded
-[moonlight]: https://github.com/v-amorim/oh-my-posh
 [skip_chapters]: ./portable_config/scripts/skip-chapters.lua
 [vf_bypass_kw]: ./portable_config/scripts/reactive_vf_bypass_keyword.lua
 [stylua]: https://github.com/JohnnyMorganz/StyLua
