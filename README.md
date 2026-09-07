@@ -1,6 +1,6 @@
 # MPV
 
-My mpv setup: player settings, a keybind map I keep expanding, a [uosc][UOSC] theme, and the script selection I actually use.
+My mpv setup: player settings, a keybind map I keep expanding, a [uosc][UOSC] theme, and the scripts I keep loaded.
 
 | Playing, with the interface showing |
 | ----------------------------------- |
@@ -23,13 +23,13 @@ Moonlight: dark, low-contrast, the interface kept thin, set in [`uosc.conf`][uos
 | `success`         | `#49ef95` | Positive feedback              |
 | `error`           | `#ca5f71` | Failures                       |
 
-Shape matters as much: `timeline_style=bar` at 20px, `top_bar=no-border`, `border_radius=6`, `font_scale=1.18`, `font_bold=yes`. Most surfaces sit under full opacity; the title is transparent, so nothing floats over the video. Menus run at `submenu=1` opacity, so every open level reads as one surface rather than fading into the background.
+Shape matters as much: `timeline_style=bar` at 20px, `top_bar=no-border`, `border_radius=6`, `font_scale=1.18`, `font_bold=yes`. Most surfaces stop short of full opacity, and the title bar is fully transparent, so nothing floats over the video. Menus run at `submenu=1`, so every open level reads as one surface instead of fading back.
 
 | At rest: the minimized timeline alone | Woken: top bar, controls, timeline |
 | ------------------------------------- | ---------------------------------- |
 | ![Minimized timeline][shot_minimal]   | ![Full interface][shot_interface]  |
 
-`TAB` toggles the interface as a whole, `SHIFT+TAB` toggles that last bar. The timeline colours the ranges it recognises, so the OP, the ED and the preview read as bands rather than as chapter ticks: `chapter_ranges` sets those colours, with `chapter_range_patterns` teaching it the shorthand titles releases actually use.
+`TAB` toggles the whole interface, `SHIFT+TAB` just that last bar. The timeline colours the ranges it recognises, so the OP, the ED and the preview read as bands rather than chapter ticks: `chapter_ranges` sets the colours, `chapter_range_patterns` teaches it the shorthand titles releases use.
 
 ### The menu patch
 
@@ -44,7 +44,7 @@ The folder is gitignored and uosc's updater overwrites it, so the change lives a
 
 ## Install
 
-Copy `portable_config/` next to `mpv.exe`. Two folders you supply.
+Copy `portable_config/` next to `mpv.exe`. You supply the two folders marked below.
 
 ```mermaid
 %%{init: {"theme": "base", "themeVariables": {"darkMode": true, "background": "#0d0e17", "textColor": "#f8eaf8", "treeView": {"labelColor": "#f8eaf8", "lineColor": "#30363d", "iconColor": "#8b949e"}}}}%%
@@ -64,11 +64,7 @@ portable_config/
 
 ## Scripts I wrote
 
-Five of them, all on the Moonlight palette.
-
-| The keyboard map and the subtitle index, in motion |
-| -------------------------------------------------- |
-| ![Keyboard map and subtitle index][shot_map_gif]   |
+Ten, the interface ones all on the Moonlight palette.
 
 ### [`keybind-visualizer.lua`][keybind_visualizer]
 
@@ -76,13 +72,17 @@ An on-screen keyboard on `F6`. Hover a key to see what it does; `ESC` closes it.
 
 Bindings are read live from `input-bindings`, so it reflects your `input.conf` plus the builtins, with no list to maintain.
 
-| Searching every binding for `sub`           |
-| ------------------------------------------- |
-| ![Keyboard map, searching][shot_map_search] |
+| Searching every binding for `sub`           | Hovering a single key                     |
+| ------------------------------------------- | ------------------------------------------- |
+| ![Keyboard map, searching][shot_map_search] | ![Keyboard map, hovering][shot_map_hover] |
 
-Just type to search them. The query matches key names, combos, descriptions and commands. Each typed word matches as a substring, as a gapped run inside a single word (`sbdly` finds `sub-delay`) or as word initials, so a scatter of letters never lights up half the keyboard. Typed characters are picked out inside each description. `BS` erases, `ESC` clears the query and then closes.
+Type to search. The query matches key names, combos, descriptions and commands. Each word matches as a substring, as a gapped run inside one word (`sbdly` finds `sub-delay`) or as word initials, so a scatter of letters never lights up half the keyboard. Matches are picked out inside each description. `BS` erases, `ESC` clears the query and then closes.
 
-A `≡` badge marks anything that also lives in the uosc menu: in the corner of the key, and beside the binding's own line in the panel. Those entries describe themselves, so the panel shows the description rather than the raw command.
+Results come as three columns: the combo, what it runs, and what that means. The command column drops the `no-osd` and `expand-properties` prefixes and the `osd_theme` message, and a binding running several commands shows the first with a `(+2)` for the rest.
+
+Descriptions come from the trailing `#` comment on each `input.conf` line, which mpv hands back through `input-bindings`. A uosc menu line describes itself after `?` instead, since its `#!` comment already holds the menu path. Only mpv's builtins, which ship without comments, come through blank.
+
+A `≡` badge marks anything that also lives in the uosc menu: in the corner of the key, and beside the binding's own line in the panel.
 
 mpv cannot detect the OS keyboard layout, so layouts live in a JSON file. Pick `ansi`, `iso`, `abnt2`, `jis`, or add your own.
 
@@ -93,11 +93,11 @@ mpv cannot detect the OS keyboard layout, so layouts live in a JSON file. Pick `
 
 ### [`sub-seek.lua`][sub_seek]
 
-A fullscreen, clickable index of every subtitle line with timestamps, on `F4`. Click a line, or arrow to it and press Enter. Unlike the builtin sub-seek, you jump anywhere instead of stepping.
+A fullscreen, clickable index of every subtitle line with timestamps, on `F4`. Click a line, or arrow to it and press Enter. The builtin sub-seek steps one line at a time; this jumps anywhere.
 
-Type to filter it down: every word typed has to appear in the line, so `long line` keeps only those carrying both, and the hits are picked out where they sit. `BS` erases, `ESC` clears the query and then closes.
+Type to filter: every word has to appear in the line, so `long line` keeps only those carrying both, and the hits are picked out where they sit. `BS` erases, `ESC` clears the query and then closes.
 
-mpv exposes no "all subtitle lines" API, so the track is dumped to a temporary `.srt` with ffmpeg and parsed; ASS and embedded subs get flattened on the way.
+mpv exposes no "all subtitle lines" API, so the track is dumped to a temporary `.srt` with ffmpeg and parsed; ASS and embedded subs are flattened on the way.
 
 | Every line of the track, the one playing highlighted | Filtered down to the lines that match |
 | --- | --- |
@@ -105,7 +105,7 @@ mpv exposes no "all subtitle lines" API, so the track is dumped to a temporary `
 
 ### [`uosc-menu.lua`][uosc_menu]
 
-uosc builds its menu from the `#!` comments in `input.conf`, but its items get no icon and say nothing about themselves. This reads the same comments, understands two more tokens, and hands uosc the finished menu through its public `open-menu` message, so no uosc file is touched.
+uosc builds its menu from the `#!` comments in `input.conf`, but those items get no icon and say nothing about themselves. This reads the same comments, understands two more tokens, and hands uosc the finished menu through its public `open-menu` message, so no uosc file is touched.
 
 | Every entry with its icon and key | The hovered entry explained under the cascade |
 | --------------------------------- | --------------------------------------------- |
@@ -132,19 +132,47 @@ g cycle interpolation   #! Video @movie > Interpolation @animation ?Resamples fr
 
 </details>
 
-Entries that carry a state draw it instead of their icon, re-read on open: `cycle <prop>`, `af toggle` and `change-list glsl-shaders toggle` become checkboxes, while entries setting the same property with `set <prop> <value>` become a radio group. Those keep the menu open when clicked and redraw in place, so a shader chain can be built in one visit.
+Entries carrying a state draw it instead of their icon, re-read on open: `cycle <prop>`, `af toggle` and `change-list glsl-shaders toggle` become checkboxes, while entries setting the same property with `set <prop> <value>` become a radio group. Those keep the menu open when clicked and redraw in place, so a shader chain can be built in one visit.
 
 Bound to `MBTN_RIGHT`, which anchors it at the pointer, and to `MENU` and the uosc menu button, which open it centred.
 
 ### [`sub-font.lua`][sub_font]
 
-One font choice, whatever the subtitle file turns out to be. Plain text subtitles carry no styling, so mpv draws them with `sub-font`; ASS scripts carry their own styles and only listen to `sub-ass-style-overrides`, which does nothing for plain text.
+One font choice, whichever kind of subtitle file turns up. Plain text subtitles carry no styling, so mpv draws them with `sub-font`; ASS scripts carry their own styles and only listen to `sub-ass-style-overrides`, which does nothing for plain text.
 
-This mirrors `sub-font` into a `FontName` override, leaving other overrides alone, so `F8` and `Subtitle > Font` land on both. `script-message-to sub_font use-file-font` drops the override again, for when an ASS script should use the typeface it names. ASS styling only gives way when `sub-ass-override` is `yes` or higher, which is what `u` toggles.
+This mirrors `sub-font` into a `FontName` override, leaving other overrides alone, so `F8` and `Subtitle > Font` land on both. `script-message-to sub_font use-file-font` drops the override again, for when an ASS script should use the typeface it names. ASS styling only gives way when `sub-ass-override` is `yes` or higher, which `u` toggles.
+
+### [`osd-theme.lua`][osd_theme]
+
+One shape for every message a keybind puts on screen, so `sub-ass-override force` never reaches the screen as bare `force`. Bindings call `script-message-to osd_theme say "<label>" "<state>" "<detail>"`. The script paints the label, colours the state green or red for a plain on or off, and sets the detail below it in a smaller, quieter line saying what the setting does.
+
+| The message a keybind leaves on screen |
+| -------------------------------------- |
+| ![Themed OSD message][shot_osd_theme]  |
+
+Colours are the blues and greys of the [Moonlight palette][moonlight] my shell prompt uses, held at the top of the file, so retinting everything is one edit there. Outline and shadow take the palette's background rather than black. Bindings prefix the mutating command with `no-osd` so mpv's own readout does not double up, and prefix the message with `expand-properties` when the state comes from a property.
 
 ### [`reset-all.lua`][reset_all]
 
-`ALT+F5` puts playback back to a fresh-start state without reloading the file: zoom, pan, aspect, rotation, panscan, speed, both delays, subtitle scale, position and visibility, and the colour controls, then clears `glsl-shaders`. Volume and mute are left alone, so a reset never blasts audio.
+`ALT+F5` returns playback to a fresh-start state without reloading the file: zoom, pan, aspect, rotation, panscan, speed, both delays, subtitle scale, position and visibility, and the colour controls, then clears `glsl-shaders`. Volume and mute are left alone, so a reset never blasts audio.
+
+### [`pause-indicator.lua`][pause_indicator]
+
+A pause glyph in the top right corner. Descended from [CogentRedTester's][crt] version, which drew a `⏸` mid-screen in whatever system font mpv fell back to, so the box and bars sat off centre.
+
+This draws the icon from the font uosc already ships, at a size and margin derived from the current OSD, so it stays symmetric and matches the rest of the interface. The original is kept in `.unused/pause-indicator-middle.lua`.
+
+### [`skip-chapters.lua`][skip_chapters]
+
+Auto-skips chapters titled as an opening, ending, credits or preview, with `F11` turning it off when a release names its chapters badly. The patterns are lowercase and anchored, so `^op$` does not swallow a chapter called "Opening Ceremony".
+
+### [`restart-mpv.lua`][restart_mpv]
+
+`F5` relaunches the player on the same file at the same position, so a config edit can be tested without losing your place.
+
+### [`watched-folder.lua`][watched_folder]
+
+`F10` toggles it; when on, a finished file is moved into a `watched` subfolder. Two known bugs: it fires when you switch files without finishing, and it skips the last file in a playlist.
 
 ## Configuration
 
@@ -159,13 +187,13 @@ This mirrors `sub-font` into a `FontName` override, leaving other overrides alon
 | -------------------------------------------- | ----------------------------------------- |
 | ![input.conf, function rows][shot_conf_keys] | ![input.conf, menu block][shot_conf_menu] |
 
-`input.conf` is the piece I put the most into: mine active among the commented ones, then the shader keys and the uosc menu. Of all the configs I read for inspiration, none were this complete.
+`input.conf` is the piece I put the most into: my active bindings among the commented ones I keep for reference, then the shader keys and the uosc menu.
 
 `profiles.conf` swaps the shader chain and subtitle styling when the path contains `Animation`, plus profiles for audio-only files and upscaling.
 
 ## Script selection
 
-Most fire off playback itself, no keypress needed.
+Most run off playback events, no keypress needed.
 
 ```mermaid
 %%{init: {"theme": "base", "themeVariables": {"darkMode": true, "background": "#0d0e17", "mainBkg": "#191726", "primaryColor": "#191726", "primaryTextColor": "#f8eaf8", "primaryBorderColor": "#7386d0", "secondaryColor": "#282e46", "secondaryTextColor": "#f8eaf8", "secondaryBorderColor": "#5dabf3", "tertiaryColor": "#3c466f", "tertiaryTextColor": "#f8eaf8", "tertiaryBorderColor": "#79c0ff", "lineColor": "#7386d0", "textColor": "#f8eaf8", "titleColor": "#f8eaf8", "nodeBorder": "#7386d0", "nodeTextColor": "#f8eaf8", "clusterBkg": "#12131f", "clusterBorder": "#30363d", "edgeLabelBackground": "#191726", "arrowheadColor": "#7386d0", "border1": "#7386d0", "border2": "#8b949e", "errorBkgColor": "#3c466f", "errorTextColor": "#f8eaf8", "fontFamily": "Mulish, system-ui, sans-serif", "fontSize": "14px"}}}%%
@@ -187,35 +215,32 @@ flowchart TB
 
 <details>
 
-<summary>The thirteen scripts I did not write</summary>
+<summary>The ten scripts I did not write</summary>
 
-| Script                                   | Source                            | What it does                                            |
-| ---------------------------------------- | --------------------------------- | ------------------------------------------------------- |
-| [`anilistUpdater`][anilist]              | [AzuredBlue][anilist_src]         | Marks the episode watched on AniList at 85%             |
-| [`autoload.lua`][autoload]               | [mpv][autoload_src]               | Queues the neighbouring files in the folder             |
-| [`chapters.lua`][chapters]               | [mar04][chapters_src]             | Create, edit and save chapters                          |
-| [`clipshot.lua`][clipshot]               | [ObserverOfTime][clipshot_src]    | Screenshot straight to the clipboard                    |
-| [`pause-indicator.lua`][pause_indicator] | [CogentRedTester][crt]            | Pause glyph in the corner                               |
-| [`reactive_vf_bypass.lua`][vf_bypass]    | [allecsc][allecsc]                | Keeps the SVP filter chain honest                       |
-| [`restart-mpv.lua`][restart_mpv]         | mine                              | Reloads the file so config edits apply                  |
-| `skip-chapters.lua`                      | unattributed                      | Auto-skips chapters matching OP, ED, credits or preview |
-| [`skip-to-silence.lua`][skip_silence]    | [detuur][detuur]                  | Jumps to the next silence, usually the OP's end         |
-| [`sub-export.lua`][sub_export]           | [kelciour][kelciour]              | Extracts the current subtitle next to the video         |
-| [`sub-select.lua`][sub_select]           | [CogentRedTester][sub_select_src] | Picks audio and subtitle tracks by rules                |
-| [`thumbfast.lua`][thumbfast]             | [po5][thumbfast_src]              | Seekbar hover thumbnails                                |
-| [`watched-folder.lua`][watched_folder]   | mine                              | Moves a finished file to a "watched" folder             |
+Each carries an added header line naming its upstream, so a file on disk always says where it came from. Beyond that, the three at the top differ; the rest are stock.
+
+| Script                                              | Source                            | What it does                                    | Local change                                                    |
+| --------------------------------------------------- | --------------------------------- | ----------------------------------------------- | ---------------------------------------------------------------- |
+| [`thumbfast.lua`][thumbfast]                        | [po5][thumbfast_src]              | Seekbar hover thumbnails                        | Expands `~~/` in `mpv_path`; a 10s watchdog kills a hung spawn  |
+| [`sub-export.lua`][sub_export]                      | [kelciour][kelciour]              | Extracts the current subtitle next to the video | Writes `.srt` for srt tracks; says why it failed; key from `input.conf` |
+| [`skip-to-silence.lua`][skip_silence]               | [detuur][detuur]                  | Jumps to the next silence, usually the OP's end | `F9` rather than `F3`                                           |
+| [`anilistUpdater`][anilist]                         | [AzuredBlue][anilist_src]         | Marks the episode watched on AniList at 85%     | Stock, but pinned far behind upstream                           |
+| [`autoload.lua`][autoload]                          | [mpv][autoload_src]               | Queues the neighbouring files in the folder     | Stock                                                           |
+| [`chapters.lua`][chapters]                          | [mar04][chapters_src]             | Create, edit and save chapters                  | Stock                                                           |
+| [`clipshot.lua`][clipshot]                          | [ObserverOfTime][clipshot_src]    | Screenshot straight to the clipboard            | Stock                                                           |
+| [`sub-select.lua`][sub_select]                      | [CogentRedTester][sub_select_src] | Picks audio and subtitle tracks by rules        | Stock                                                           |
+| [`reactive_vf_bypass.lua`][vf_bypass]               | [allecsc][allecsc]                | Keeps the SVP filter chain honest               | Stock                                                           |
+| [`reactive_vf_bypass_keyword.lua`][vf_bypass_kw]    | [allecsc][allecsc]                | The same, matched by keyword                    | Stock                                                           |
 
 </details>
 
-Several carry local patches, `thumbfast.lua` most of all.
-
-`watched-folder.lua` has two known bugs: it fires when you switch files without finishing, and it skips the last file in a playlist.
+Everything here is formatted with the same [stylua][stylua] settings as the rest of the repo, so a plain diff against upstream is mostly reindentation. Run upstream through stylua first and only the changes named above remain.
 
 <details>
 
 <summary>Scripts kept but not loaded</summary>
 
-Tried and dropped, kept for reference: `autodeint.lua`, `better-chapter.lua`, `inputevent.lua`, `memo.lua`, `mute-on-specific-subtitle-words.js`, `osc.lua`, `pause-indicator-middle.lua`, `sub-bilingual.lua`.
+Tried and dropped, kept for reference in `scripts/.unused/`, which mpv skips: `autodeint.lua`, `better-chapter.lua`, `inputevent.lua`, `memo.lua`, `mute-on-specific-subtitle-words.js`, `osc.lua`, `pause-indicator-middle.lua`, `sub-bilingual.lua`.
 
 </details>
 
@@ -226,8 +251,9 @@ Shaders, [Anime4K][Anime4k] among them, are too large to commit; [`shaders_list.
 <!-- URLS -->
 
 [shot_playing]: assets/mpv-playing.png
-[shot_map_gif]: assets/keybind-visualizer-and-sub-seek.gif
 [shot_map_search]: assets/keybind-visualizer-search.png
+[shot_map_hover]: assets/keybind-visualizer-hover.png
+[shot_osd_theme]: assets/osd-theme.png
 [shot_sub_seek]: assets/sub-seek.png
 [shot_sub_search]: assets/sub-seek-search.png
 [shot_menu_root]: assets/uosc-menu-root.png
@@ -263,6 +289,7 @@ Shaders, [Anime4K][Anime4k] among them, are too large to commit; [`shaders_list.
 [crt]: https://github.com/CogentRedTester/mpv-scripts
 [vf_bypass]: ./portable_config/scripts/reactive_vf_bypass.lua
 [allecsc]: https://github.com/allecsc/mpv-qol-scripts
+[osd_theme]: ./portable_config/scripts/osd-theme.lua
 [reset_all]: ./portable_config/scripts/reset-all.lua
 [sub_font]: ./portable_config/scripts/sub-font.lua
 [uosc_menu]: ./portable_config/scripts/uosc-menu.lua
@@ -279,3 +306,7 @@ Shaders, [Anime4K][Anime4k] among them, are too large to commit; [`shaders_list.
 [thumbfast_src]: https://github.com/po5/thumbfast
 [watched_folder]: ./portable_config/scripts/watched-folder.lua
 [icons]: https://fonts.google.com/icons?icon.set=Material+Icons&icon.style=Rounded
+[moonlight]: https://github.com/v-amorim/oh-my-posh
+[skip_chapters]: ./portable_config/scripts/skip-chapters.lua
+[vf_bypass_kw]: ./portable_config/scripts/reactive_vf_bypass_keyword.lua
+[stylua]: https://github.com/JohnnyMorganz/StyLua
