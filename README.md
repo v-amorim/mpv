@@ -44,7 +44,31 @@ The folder is gitignored and uosc's updater overwrites it, so the change lives a
 
 ## Install
 
-Copy `portable_config/` next to `mpv.exe`. You supply the two folders marked below.
+`just first-run` walks the whole thing in nine stages: find or fetch mpv, unpack uosc and patch it, unpack the shaders, pick your keyboard layout, install the AniList packages, link your AniList account, put the config where mpv reads it. uosc, the shaders and the mpv build itself are pulled from their own releases, so nothing has to be downloaded or unzipped by hand. Every stage can be skipped, and re-running it is safe. [`first-run.py`][first_run] is standard library only, so `python first-run.py` works with no `just` and nothing installed.
+
+It asks first where the config should live:
+
+| Mode       | Where mpv goes                | The config                                              |
+| ---------- | ----------------------------- | ------------------------------------------------------- |
+| `here`     | into this repo folder         | read where it already sits, so an edit is live at once   |
+| `system`   | the mpv you already have      | copied next to that executable                          |
+| `portable` | a folder you name             | copied there, leaving anything existing alone            |
+
+`here` is the one to pick if you plan to keep editing the config: `portable_config/` is already beside the executable, so there is nothing to copy and `just patch` lands on the uosc that mpv actually loads. The mpv payload in the repo root is gitignored.
+
+### What has to be on the machine
+
+| Tool         | Needed for                                                             | Without it                                        |
+| ------------ | ---------------------------------------------------------------------- | ------------------------------------------------- |
+| mpv          | everything                                                             | nothing runs                                      |
+| ffmpeg       | `F4` subtitle index, subtitle export, chapter remux                    | those three fail silently at the moment you press |
+| Python 3.8+  | `just patch`, the AniList scripts, `first-run.py`                      | no uosc patch and no AniList                      |
+| [uv][uv]     | `just setup`, which vendors `requests` and `guessit`                   | `first-run.py` falls back to `pip`                |
+| [just][just] | the recipes below                                                      | run the command inside each recipe by hand        |
+
+mpv is not in this repo, and on Windows it has no official binary: mpv.io calls every Windows package an unofficial third-party build, apart from a first-party CI build meant for testing. Pick one from [mpv.io/installation][mpv_install].
+
+By hand instead: copy `portable_config/` next to `mpv.exe`. You supply the two folders marked below.
 
 ```mermaid
 %%{init: {"theme": "base", "themeVariables": {"darkMode": true, "background": "#0d0e17", "textColor": "#f8eaf8", "treeView": {"labelColor": "#f8eaf8", "lineColor": "#30363d", "iconColor": "#8b949e"}}}}%%
@@ -63,6 +87,10 @@ portable_config/
 ```
 
 The AniList scripts import `requests` and `guessit`. `just setup` installs both into `scripts/anilistUpdater/vendor/` with [uv][uv], so they do not depend on whatever `Lib` folder happens to sit next to `mpv.exe`; `just setup-check` reports whether mpv can import them. The folder is gitignored.
+
+Shaders go under `shaders/`, and the Anime4K ones under `shaders/Anime4K/`: that folder name is written into `profiles.conf` and every `CTRL+1` through `CTRL+7` binding, so a flat `shaders/` folder loads nothing.
+
+`F6` draws the keyboard named in [`keybind-visualizer.conf`][keybind_visualizer_conf], and it ships set to `abnt2`, a Brazilian layout. Change it to `ansi`, `iso` or `jis` to see your own keys.
 
 ## Scripts I wrote
 
@@ -222,6 +250,8 @@ Auto-skips chapters titled as an opening, ending, credits or preview, with `F11`
 
 A wrong guess is fixed from the same panel: search AniList by name, or paste a URL or a bare id into the search box. The correction is stored against a key built from what guessit parsed, the episode title and the season, so pinning one entry never drags an unrelated season of the same show along with it.
 
+To get a token, open [the authorize link][anilist_auth] and approve it: the client id in that URL is the public one [AzuredBlue's README][anilist_src] hands out, so there is no application to register. AniList then shows the token on the page; copy it and press `CTRL+n` on the panel's link row.
+
 The token is no longer a text file next to the scripts. `CTRL+n` on the link row reads it from the clipboard and hands it to Python over stdin rather than argv, keeping it out of the process list, and it is stored with `CryptProtectData` under `%LOCALAPPDATA%\mpv-anilist\`. That is outside the config tree, so it cannot be committed or synced, and it is tied to the Windows account, so a copied file is inert on another machine. Moving the config to a new PC means entering the token again. When AniList rejects an expired token the panel says so and points at the row that fixes it.
 
 One fix reached the API layer: the original sent the token only on writes, so every lookup went out unauthenticated and came back `403`. It is sent on every request now.
@@ -357,6 +387,10 @@ Shaders, [Anime4K][Anime4k] among them, are too large to commit; [`shaders_list.
 [chapters_menu]: ./portable_config/scripts/chapters-menu.lua
 [sub_select_menu]: ./portable_config/scripts/sub-select-menu.lua
 [uv]: https://github.com/astral-sh/uv
+[just]: https://github.com/casey/just
+[first_run]: ./first-run.py
+[mpv_install]: https://mpv.io/installation/
+[anilist_auth]: https://anilist.co/api/v2/oauth/authorize?client_id=20740&response_type=token
 [uosc_patch]: ./patches/uosc-cascade-menu.patch
 [apply_py]: ./patches/apply.py
 [restart_mpv]: ./portable_config/scripts/restart-mpv.lua

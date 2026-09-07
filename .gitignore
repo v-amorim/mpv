@@ -18,3 +18,15 @@ __pycache__/
 
 # Vendored python packages, recreated by `just setup`
 vendor/
+
+# An mpv unpacked into the repo root, so portable_config/ is read where it sits
+# rather than copied. Everything a Windows build drops beside its executable.
+/mpv.exe
+/mpv.com
+/*.dll
+/mpv/
+/doc/
+/installer/
+/updater.bat
+/mpv-register.bat
+/mpv-unregister.bat

@@ -1,9 +1,17 @@
 # Recipes for this config. Every one is a single command, so they run the same
 # under sh, cmd and PowerShell.
 
+# On Windows just reaches for `sh`, which a plain PowerShell has no reason to
+# have. Every recipe here is one plain command, so cmd runs them all.
+set windows-shell := ["cmd.exe", "/c"]
+
 # List the recipes
 default:
     @just --list
+
+# Walk through a first install: mpv, uosc, the patch, shaders, layout and AniList
+first-run:
+    python first-run.py
 
 # Reapply the local patches over the vendored uosc, after installing or updating it
 patch:
