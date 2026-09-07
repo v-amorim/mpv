@@ -6,7 +6,12 @@ import webbrowser
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", "..", "Lib"))
 import requests
+import token_store
 from guessit import guessit
+
+# main.lua greps stdout for these, so it can theme the message it puts on screen.
+NOT_LINKED = "ANILIST_NOT_LINKED"
+EXPIRED = "ANILIST_EXPIRED"
 
 
 class AniListUpdater:
@@ -14,30 +19,15 @@ class AniListUpdater:
 
     # Load token and user id
     def __init__(self):
-        self.access_token = self.load_access_token()  # Replace token here if you don't use the .txt
+        self.access_token, self.cached_user_id = token_store.load()
+        if not self.access_token:
+            raise RuntimeError(f"{NOT_LINKED}: no AniList token stored, run the setup binding")
         self.user_id = self.get_user_id()
 
-    # Load token from anilistToken.txt
-    def load_access_token(self):
-        token_path = os.path.join(os.path.dirname(__file__), "anilistToken.txt")
-        try:
-            with open(token_path) as file:
-                content = file.read().strip()
-                return content.split(":")[1] if ":" in content else content
-        except Exception as e:
-            print(f"Error reading access token: {e}")
-            return None
-
-    # Load user id from file, if not then make api request and save it.
+    # Load user id from the store, if not then make api request and save it.
     def get_user_id(self):
-        token_path = os.path.join(os.path.dirname(__file__), "anilistToken.txt")
-        try:
-            with open(token_path) as file:
-                content = file.read().strip()
-                if ":" in content:
-                    return int(content.split(":")[0])
-        except Exception as e:
-            print(f"Error reading user ID: {e}")
+        if self.cached_user_id:
+            return self.cached_user_id
 
         query = """
         query {
@@ -55,14 +45,7 @@ class AniListUpdater:
 
     # Cache user id
     def save_user_id(self, user_id):
-        token_path = os.path.join(os.path.dirname(__file__), "anilistToken.txt")
-        try:
-            with open(token_path, "r+") as file:
-                content = file.read()
-                file.seek(0)
-                file.write(f"{user_id}:{content}")
-        except Exception as e:
-            print(f"Error saving user ID: {e}")
+        token_store.save(self.access_token, user_id)
 
     # Function to make an api request to AniList's api
     def make_api_request(self, query, variables=None, access_token=None):
@@ -78,6 +61,10 @@ class AniListUpdater:
         )
         if response.status_code == 200:
             return response.json()
+
+        # AniList tokens last a year, so a rejected one is almost always expired.
+        if response.status_code in (400, 401):
+            raise RuntimeError(f"{EXPIRED}: AniList rejected the token, run the setup binding again")
 
         print(f"API request failed: {response.status_code} - {response.text}")
         return None
@@ -369,8 +356,24 @@ class AniListUpdater:
             print("Failed to update episode count.")
 
 
+def link_account():
+    """Store the token handed over on stdin, so it never reaches the process list."""
+    token = sys.stdin.read().strip()
+    if not token:
+        print("ERROR: nothing on the clipboard to read a token from")
+        sys.exit(1)
+
+    token_store.save(token)
+    updater = AniListUpdater()  # its user id lookup doubles as the token check
+    response = updater.make_api_request("query { Viewer { name } }", None, token)
+    print(f"LINKED: {response['data']['Viewer']['name']}")
+
+
 def main():
     try:
+        if sys.argv[1] == "--setup":
+            link_account()
+            return
         updater = AniListUpdater()
         updater.handle_filename(sys.argv[1])
     except Exception as e:

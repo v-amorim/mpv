@@ -12,3 +12,6 @@ cache/
 anilistToken*.txt
 
 portable_config/scripts/uosc/
+
+# Python bytecode
+__pycache__/

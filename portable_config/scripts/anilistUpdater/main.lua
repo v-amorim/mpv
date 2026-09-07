@@ -2,10 +2,29 @@
 
 local utils = require("mp.utils")
 
+local function say(label, state, detail)
+	mp.commandv("script-message-to", "osd_theme", "say", label, state or "", detail or "")
+end
+
+-- The python side marks these on stdout so the OSD can say what to do next.
+local function report(output)
+	if output:find("ANILIST_NOT_LINKED", 1, true) then
+		say("AniList", "not linked", "copy a token, then press the setup binding")
+	elseif output:find("ANILIST_EXPIRED", 1, true) then
+		say("AniList", "expired", "copy a fresh token, then press the setup binding")
+	else
+		local name = output:match("LINKED: (%S+)")
+		if name then
+			say("AniList", "linked", "as " .. name)
+		end
+	end
+end
+
 function callback(success, result, error)
 	if result.status == 0 then
 		mp.osd_message("Updated anime correctly.", 2)
 	end
+	report(result.stdout or "")
 end
 
 local function get_python_command()
@@ -53,7 +72,27 @@ function update_anilist(action)
 	local table = {}
 	table.name = "subprocess"
 	table.args = { python_command, script_dir .. "anilistUpdater.py", path, action }
+	table.capture_stdout = true
 	local cmd = mp.command_native_async(table, callback)
+end
+
+-- The token goes over stdin rather than argv, which any process list can read.
+function link_anilist()
+	local token = mp.get_property("clipboard/text")
+	if not token or token:match("^%s*$") then
+		say("AniList", "no token", "copy the token from the AniList page first")
+		return
+	end
+
+	local script_dir = debug.getinfo(1).source:match("@?(.*/)")
+	mp.command_native_async({
+		name = "subprocess",
+		args = { python_command, script_dir .. "anilistUpdater.py", "--setup" },
+		stdin_data = token,
+		capture_stdout = true,
+	}, function(success, result, error)
+		report(result.stdout or "")
+	end)
 end
 
 mp.observe_property("percent-pos", "number", check_progress)
@@ -71,3 +110,5 @@ end)
 mp.add_key_binding("", "launch_anilist", function()
 	update_anilist("launch")
 end)
+
+mp.add_key_binding("", "link_anilist", link_anilist)
