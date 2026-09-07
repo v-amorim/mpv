@@ -372,16 +372,100 @@ local function binding_desc(b)
 	else
 		t = t:gsub("^#%s*", "")
 	end
-	if t == "" then
-		t = b.cmd
-	end
+	-- the command has a column of its own now, so an undescribed binding stays
+	-- blank rather than repeating it
 	return (t:gsub("%s+", " "))
+end
+
+-- prefixes that say how a command reports itself, not what it does
+local CMD_PREFIXES = {
+	["no-osd"] = true,
+	["osd-auto"] = true,
+	["osd-bar"] = true,
+	["osd-msg"] = true,
+	["osd-msg-bar"] = true,
+	["expand-properties"] = true,
+	["raw"] = true,
+	["async"] = true,
+	["sync"] = true,
+	["repeatable"] = true,
+	["nonrepeatable"] = true,
+}
+
+-- split on ";" while leaving the separators inside quoted arguments alone, which
+-- a shader list ("a.glsl;b.glsl") depends on
+local function split_commands(cmd)
+	local parts, buf, quote = {}, {}, nil
+	for i = 1, #cmd do
+		local c = cmd:sub(i, i)
+		if quote then
+			if c == quote then
+				quote = nil
+			end
+			buf[#buf + 1] = c
+		elseif c == '"' or c == "'" then
+			quote = c
+			buf[#buf + 1] = c
+		elseif c == ";" then
+			parts[#parts + 1] = table.concat(buf)
+			buf = {}
+		else
+			buf[#buf + 1] = c
+		end
+	end
+	parts[#parts + 1] = table.concat(buf)
+	return parts
+end
+
+local function trim(s)
+	return (s:gsub("^%s+", ""):gsub("%s+$", ""))
+end
+
+-- what the binding actually does: prefixes and the osd-theme message are dropped,
+-- and the remaining commands collapse to the first one plus a count
+local function binding_cmd(cmd)
+	local kept = {}
+	for _, part in ipairs(split_commands(cmd or "")) do
+		part = trim(part)
+		local head, rest = part:match("^(%S+)%s+(.+)$")
+		while head and CMD_PREFIXES[head] do
+			part = rest
+			head, rest = part:match("^(%S+)%s+(.+)$")
+		end
+		if part ~= "" and not part:match("^script%-message%-to%s+osd_theme") then
+			kept[#kept + 1] = (part:gsub("%s+", " "))
+		end
+	end
+	if #kept == 0 then
+		return trim((cmd or ""):gsub("%s+", " "))
+	end
+	if #kept == 1 then
+		return kept[1]
+	end
+	return string.format("%s (+%d)", kept[1], #kept - 1)
 end
 
 -- combo labels carry multi-byte glyphs (arrows), so padding needs characters, not bytes
 local function ulen(s)
 	local _, n = s:gsub("[^\128-\191]", "")
 	return n
+end
+
+-- cut to a character width, marking the cut so a clipped command cannot be read
+-- as the whole of it
+local function utrunc(s, width)
+	if ulen(s) <= width then
+		return s
+	end
+	local out, taken = {}, 0
+	for ch in s:gmatch("[%z\1-\127\194-\244][\128-\191]*") do
+		if taken >= width - 1 then
+			break
+		end
+		out[#out + 1] = ch
+		taken = taken + 1
+	end
+	return table.concat(out) .. "\xE2\x80\xA6"
 end
 
 -- word-wrap a string to a max width (in characters), hard-breaking words that
@@ -768,18 +852,23 @@ local function build_info_lines(id)
 	local sep =
 		string.format("{\\fs%d\\1c&H%s&}%s", sep_fs, C.sep, string.rep("\xE2\x94\x80", math.floor(max_chars * 0.98)))
 
-	-- every description starts at one column, so the combo pads out to the widest
+	-- combo, command and description each start at one column, so both leading
+	-- columns pad out to their widest entry
 	local div = "\xE2\x94\x82"
-	local combo_w = 0
+	local combo_w, cmd_w = 0, 0
 	for _, b in ipairs(lst) do
 		combo_w = math.max(combo_w, ulen(b.label .. name))
+		cmd_w = math.max(cmd_w, ulen(binding_cmd(b.cmd)))
 	end
-	local indent = combo_w + 5 -- pad + space + divider + space + menu badge + space
+	local fixed = combo_w + 8 -- pads, spaces, two dividers and the menu badge
+	cmd_w = math.max(8, math.min(cmd_w, math.floor((max_chars - fixed) * 0.4)))
+	local indent = fixed + cmd_w
 
 	local budget = max_lines - 1 -- title already used one line
 	local shown = 0
 	for i, b in ipairs(lst) do
 		local combo = b.label .. name
+		local cmd = utrunc(binding_cmd(b.cmd), cmd_w)
 		local wrapped = wrap_text(binding_desc(b), math.max(8, max_chars - indent))
 		local need = #wrapped + ((i > 1) and 1 or 0) -- +1 for the separator row
 		local reserve = (i == #lst) and 0 or 1
@@ -792,14 +881,18 @@ local function build_info_lines(id)
 			lines[#lines + 1] = sep
 			total_h = total_h + sep_h
 		end
-		-- first physical line: accent combo, padded, then the divider, the menu
-		-- badge column and the first chunk
+		-- first physical line: accent combo, the command, then the menu badge
+		-- column and the first chunk of the description
 		lines[#lines + 1] = string.format(
-			"{\\fs%d\\1c&H%s&}%s%s{\\1c&H%s&}\\h%s\\h{\\1c&H%s&}%s\\h%s",
+			"{\\fs%d\\1c&H%s&}%s%s{\\1c&H%s&}\\h%s\\h%s%s{\\1c&H%s&}\\h%s\\h{\\1c&H%s&}%s\\h%s",
 			info_fs,
 			C.accent,
 			esc(combo),
 			string.rep("\\h", combo_w - ulen(combo)),
+			C.sep,
+			div,
+			highlight(cmd, C.text_dim),
+			string.rep("\\h", cmd_w - ulen(cmd)),
 			C.sep,
 			div,
 			C.accent,
@@ -847,16 +940,24 @@ local function build_search_lines()
 	local max_chars = math.max(20, math.floor(inner_px / (info_fs * 0.6)))
 
 	local budget = max_lines - 1
-	local combo_w = 0
-	for i = 1, math.min(#match_list, budget) do
+	local shown = math.min(#match_list, budget)
+	local combo_w, cmd_w = 0, 0
+	for i = 1, shown do
 		combo_w = math.max(combo_w, ulen(match_list[i].b.label .. match_list[i].name))
+		cmd_w = math.max(cmd_w, ulen(binding_cmd(match_list[i].b.cmd)))
 	end
-	local indent = combo_w + 5
+
+	-- the command column takes what it needs, up to a third of the row, so the
+	-- description keeps the rest
+	local fixed = combo_w + 8
+	cmd_w = math.max(8, math.min(cmd_w, math.floor((max_chars - fixed) * 0.4)))
+	local desc_w = math.max(8, max_chars - fixed - cmd_w)
 	local div = "\xE2\x94\x82"
 
 	for i, hit in ipairs(match_list) do
 		local combo = hit.b.label .. hit.name
-		local desc = wrap_text(binding_desc(hit.b), math.max(8, max_chars - indent))[1]
+		local cmd = utrunc(binding_cmd(hit.b.cmd), cmd_w)
+		local desc = wrap_text(binding_desc(hit.b), desc_w)[1]
 		if budget < ((i < #match_list) and 2 or 1) then
 			lines[#lines + 1] =
 				string.format("{\\fs%d\\1c&H%s&}... (+%d more)", info_fs, C.text_dim, #match_list - i + 1)
@@ -864,11 +965,15 @@ local function build_search_lines()
 			break
 		end
 		lines[#lines + 1] = string.format(
-			"{\\fs%d\\1c&H%s&}%s%s{\\1c&H%s&}\\h%s\\h{\\1c&H%s&}%s\\h%s",
+			"{\\fs%d\\1c&H%s&}%s%s{\\1c&H%s&}\\h%s\\h%s%s{\\1c&H%s&}\\h%s\\h{\\1c&H%s&}%s\\h%s",
 			info_fs,
 			C.accent,
 			esc(combo),
 			string.rep("\\h", combo_w - ulen(combo)),
+			C.sep,
+			div,
+			highlight(cmd, C.text_dim),
+			string.rep("\\h", cmd_w - ulen(cmd)),
 			C.sep,
 			div,
 			C.accent,
