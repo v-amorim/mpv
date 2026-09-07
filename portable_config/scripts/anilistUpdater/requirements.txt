@@ -1,0 +1,4 @@
+# Installed into ./vendor by `just setup`, so the scripts do not depend on the
+# Lib folder SVP happens to ship next to mpv.exe.
+requests
+guessit

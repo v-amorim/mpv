@@ -1,17 +1,45 @@
 # https://github.com/AzuredBlue/mpv-anilist-updater
 
+import json
 import os
+import re
 import sys
 import webbrowser
 
-sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", "..", "Lib"))
-import requests
+# Piped to mpv, stdout defaults to the ANSI codepage, so one CJK character in a
+# filename kills the process before it can print anything useful.
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
+# mpv launches this by absolute path from whatever directory it happens to be
+# in, so none of these can be left to the working directory or to PATH.
+_HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, _HERE)
+# `just setup` fills vendor/. The Lib beside mpv.exe is the fallback, since SVP
+# ships one and an existing install may still be relying on it.
+sys.path.insert(1, os.path.join(_HERE, "vendor"))
+sys.path.append(os.path.join(_HERE, "..", "..", "..", "Lib"))
+import overrides
 import token_store
-from guessit import guessit
+
+# A missing package used to surface as a raw traceback, which the menu could
+# only report as "it did not open". Named plainly instead, with the fix.
+MISSING_DEPS = None
+try:
+    import requests
+    from guessit import guessit
+except ImportError as error:
+    MISSING_DEPS = str(error)
 
 # main.lua greps stdout for these, so it can theme the message it puts on screen.
 NOT_LINKED = "ANILIST_NOT_LINKED"
 EXPIRED = "ANILIST_EXPIRED"
+NO_MATCH = "ANILIST_NO_MATCH"
+
+# guessit prints a MatchesDict full of braces, so the payload needs a marker
+# main.lua can anchor on rather than hunting for the first bracket.
+JSON_PREFIX = "ANILIST_JSON:"
+API_DOWN = "ANILIST_API_DOWN"
 
 
 class AniListUpdater:
@@ -19,7 +47,7 @@ class AniListUpdater:
 
     # Load token and user id
     def __init__(self):
-        self.access_token, self.cached_user_id = token_store.load()
+        self.access_token, self.cached_user_id, self.account_name = token_store.load()
         if not self.access_token:
             raise RuntimeError(f"{NOT_LINKED}: no AniList token stored, run the setup binding")
         self.user_id = self.get_user_id()
@@ -45,14 +73,17 @@ class AniListUpdater:
 
     # Cache user id
     def save_user_id(self, user_id):
-        token_store.save(self.access_token, user_id)
+        token_store.save(self.access_token, user_id, self.account_name)
 
     # Function to make an api request to AniList's api
     def make_api_request(self, query, variables=None, access_token=None):
         headers = {"Content-Type": "application/json", "Accept": "application/json"}
 
-        if access_token:
-            headers["Authorization"] = f"Bearer {access_token}"
+        # AniList refuses anonymous queries, so every request carries the token,
+        # not just the ones that write to your list.
+        token = access_token or self.access_token
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
 
         response = requests.post(
             self.ANILIST_API_URL,
@@ -65,6 +96,11 @@ class AniListUpdater:
         # AniList tokens last a year, so a rejected one is almost always expired.
         if response.status_code in (400, 401):
             raise RuntimeError(f"{EXPIRED}: AniList rejected the token, run the setup binding again")
+
+        # Their side, not ours. Must not read as "no match", or the picker opens
+        # asking you to fix a guess that was never made.
+        if response.status_code == 403 or response.status_code >= 500:
+            raise RuntimeError(f"{API_DOWN}: AniList returned {response.status_code}, try again later")
 
         print(f"API request failed: {response.status_code} - {response.text}")
         return None
@@ -124,7 +160,18 @@ class AniListUpdater:
 
     def handle_filename(self, filename):
         file_info = self.parse_filename(filename)
-        anime_id, actual_name = self.get_anime_info(file_info["name"], file_info["year"])
+
+        pinned = overrides.get(file_info["key"])
+        if pinned:
+            anime_id, actual_name = pinned["id"], pinned["title"]
+        else:
+            found = self.get_anime_info(file_info["name"], file_info["year"])
+            if not found:
+                # main.lua opens the picker on this, seeded with what was guessed.
+                print(f"{NO_MATCH}: {file_info['name']}")
+                return
+            anime_id, actual_name = found
+
         self.update_episode_count(anime_id, file_info["episode"], actual_name)
 
     # Hardcoded exceptions to fix detection
@@ -218,10 +265,119 @@ class AniListUpdater:
 
         print(f"Guessed name: {name}")
 
+        # Cours of the same show share a title, so a pin keyed on the name alone
+        # would drag every other Bleach onto whichever one was picked. The
+        # subtitle fields are what actually tell them apart.
+        key = "|".join(
+            field.strip().lower()
+            for field in (
+                str(guess.get("title", "")),
+                str(guess.get("episode_title", "")),
+                str(guess.get("alternative_title", "")),
+                str(season),
+                str(part),
+            )
+        )
+
         return {
             "name": name,
             "episode": episode,
             "year": year,
+            "key": key,
+        }
+
+    # Candidate entries for the picker, richest first field being what it shows
+    def search(self, query, limit=15):
+        graphql = """
+        query ($search: String, $perPage: Int) {
+            Page(perPage: $perPage) {
+                media(search: $search, type: ANIME) {
+                    id
+                    siteUrl
+                    format
+                    episodes
+                    startDate { year }
+                    title { romaji english }
+                    coverImage { medium }
+                }
+            }
+        }
+        """
+        response = self.make_api_request(graphql, {"search": query, "perPage": limit})
+        return [self._entry(media) for media in response["data"]["Page"]["media"]]
+
+    # What the user already has saved for this anime. Read-only, and its own
+    # query because get_episode_count changes shape when there is no entry.
+    def list_entry(self, anime_id):
+        graphql = """
+        query ($mediaId: Int, $userId: Int) {
+            MediaList(mediaId: $mediaId, userId: $userId) {
+                status
+                progress
+                media {
+                    episodes
+                    status
+                    nextAiringEpisode { episode timeUntilAiring }
+                }
+            }
+        }
+        """
+        try:
+            response = self.make_api_request(graphql, {"mediaId": anime_id, "userId": self.user_id})
+        except Exception:
+            return None
+
+        entry = (response or {}).get("data", {}).get("MediaList")
+        if not entry:
+            return None
+
+        media = entry["media"] or {}
+        upcoming = media.get("nextAiringEpisode") or {}
+        return {
+            "status": entry["status"],
+            "progress": entry["progress"],
+            "episodes": media.get("episodes"),
+            # Airing state of the show itself, not of the user's list entry.
+            "airing": media.get("status"),
+            "next_episode": upcoming.get("episode"),
+            "next_in": upcoming.get("timeUntilAiring"),
+        }
+
+    # Takes a bare id or anything pasted that contains one, such as a siteUrl.
+    def resolve(self, anime_id):
+        if not str(anime_id).isdigit():
+            found = re.search(r"anime/(\d+)|(\d+)", str(anime_id))
+            if not found:
+                raise ValueError(f"no AniList id in {anime_id!r}")
+            anime_id = found.group(1) or found.group(2)
+
+        graphql = """
+        query ($id: Int) {
+            Media(id: $id, type: ANIME) {
+                id
+                siteUrl
+                format
+                episodes
+                startDate { year }
+                title { romaji english }
+                coverImage { medium }
+            }
+        }
+        """
+        response = self.make_api_request(graphql, {"id": int(anime_id)})
+        return self._entry(response["data"]["Media"])
+
+    @staticmethod
+    def _entry(media):
+        return {
+            "id": media["id"],
+            "title": media["title"]["romaji"] or media["title"]["english"],
+            "english": media["title"]["english"],
+            "format": media["format"],
+            "episodes": media["episodes"],
+            "year": (media["startDate"] or {}).get("year"),
+            "url": media["siteUrl"],
+            "cover": (media["coverImage"] or {}).get("medium"),
         }
 
     # Get the anime's id from the guessed name
@@ -366,16 +522,141 @@ def link_account():
     token_store.save(token)
     updater = AniListUpdater()  # its user id lookup doubles as the token check
     response = updater.make_api_request("query { Viewer { name } }", None, token)
-    print(f"LINKED: {response['data']['Viewer']['name']}")
+    name = response["data"]["Viewer"]["name"]
+    token_store.save(token, updater.user_id, name)
+    print(f"LINKED: {name}")
 
 
 def main():
     try:
-        if sys.argv[1] == "--setup":
+        command = sys.argv[1]
+
+        if command == "--deps":
+            if MISSING_DEPS:
+                print(f"ERROR: {MISSING_DEPS}. Run `just setup`.")
+                sys.exit(1)
+            print(f"requests {requests.__version__} from {os.path.dirname(requests.__file__)}")
+            print(f"guessit from {os.path.dirname(sys.modules['guessit'].__file__)}")
+            return
+
+        if MISSING_DEPS:
+            raise RuntimeError(f"{MISSING_DEPS}. Run `just setup` in the config repo.")
+
+        if command == "--setup":
             link_account()
             return
+
+        # One call for everything the menu draws: who you are, what this file
+        # resolved to, and what your list already says. Two calls meant two
+        # process spawns before a single row could be drawn.
+        if command == "--menu":
+            token, user_id, name = token_store.load()
+
+            if token and not name:
+                try:
+                    probe = AniListUpdater()
+                    reply = probe.make_api_request("query { Viewer { name } }", None, token)
+                    name = reply["data"]["Viewer"]["name"]
+                    token_store.save(token, user_id or probe.user_id, name)
+                except Exception:
+                    name = None
+
+            payload = {"linked": bool(token), "name": name}
+
+            if token and len(sys.argv) > 2 and sys.argv[2]:
+                updater = AniListUpdater()
+                file_info = updater.parse_filename(sys.argv[2])
+                pinned = overrides.get(file_info["key"])
+
+                if pinned:
+                    match = {"id": pinned["id"], "title": pinned["title"], "source": "pinned"}
+                else:
+                    found = updater.get_anime_info(file_info["name"], file_info["year"])
+                    match = (
+                        {"id": found[0], "title": found[1], "source": "guessed"} if found else None
+                    )
+
+                if match:
+                    match["entry"] = updater.list_entry(match["id"])
+
+                payload.update(
+                    {"guess": file_info["name"], "episode": file_info["episode"], "match": match}
+                )
+
+            print(JSON_PREFIX + json.dumps(payload))
+            return
+
+        # Answered from the encrypted store alone, so the menu opens instantly
+        # and still says who you are while AniList is unreachable.
+        if command == "--status":
+            token, user_id, name = token_store.load()
+
+            # Accounts linked before the name was cached backfill it once, and
+            # stay merely "linked" if AniList cannot be reached to ask.
+            if token and not name:
+                try:
+                    updater = AniListUpdater()
+                    response = updater.make_api_request("query { Viewer { name } }", None, token)
+                    name = response["data"]["Viewer"]["name"]
+                    token_store.save(token, user_id or updater.user_id, name)
+                except Exception:
+                    name = None
+
+            print(JSON_PREFIX + json.dumps({"linked": bool(token), "name": name}))
+            return
+
+        # What this file would update, without updating it.
+        if command == "--match":
+            updater = AniListUpdater()
+            file_info = updater.parse_filename(sys.argv[2])
+            pinned = overrides.get(file_info["key"])
+
+            if pinned:
+                match = {"id": pinned["id"], "title": pinned["title"], "source": "pinned"}
+            else:
+                found = updater.get_anime_info(file_info["name"], file_info["year"])
+                match = (
+                    {"id": found[0], "title": found[1], "source": "guessed"} if found else None
+                )
+
+            if match:
+                match["entry"] = updater.list_entry(match["id"])
+
+            print(
+                JSON_PREFIX
+                + json.dumps(
+                    {"guess": file_info["name"], "episode": file_info["episode"], "match": match}
+                )
+            )
+            return
+
+        if command == "--search":
+            updater = AniListUpdater()
+            print(JSON_PREFIX + json.dumps(updater.search(sys.argv[2])))
+            return
+
+        if command == "--resolve":
+            updater = AniListUpdater()
+            print(JSON_PREFIX + json.dumps(updater.resolve(sys.argv[2])))
+            return
+
+        if command == "--guess":
+            updater = AniListUpdater()
+            print(JSON_PREFIX + json.dumps(updater.parse_filename(sys.argv[2])))
+            return
+
+        if command == "--pin":
+            # argv: --pin <path> <anime_id>
+            updater = AniListUpdater()
+            file_info = updater.parse_filename(sys.argv[2])
+            entry = updater.resolve(sys.argv[3])
+            overrides.put(file_info["key"], entry["id"], entry["title"])
+            updater.update_episode_count(entry["id"], file_info["episode"], entry["title"])
+            print(f"PINNED: {entry['title']}")
+            return
+
         updater = AniListUpdater()
-        updater.handle_filename(sys.argv[1])
+        updater.handle_filename(command)
     except Exception as e:
         print(f"ERROR: {e}")
         sys.exit(1)

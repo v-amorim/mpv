@@ -45,18 +45,19 @@ def _adopt_legacy():
         return None, None
 
     if not content:
-        return None, None
+        return None, None, None
 
     user_id, _, token = content.partition(":")
     if not token:
         user_id, token = None, user_id
 
-    save(token, int(user_id) if user_id else None)
-    return token, int(user_id) if user_id else None
+    user_id = int(user_id) if user_id else None
+    save(token, user_id)
+    return token, user_id, None
 
 
 def load():
-    """The stored token and cached user id, both None until setup has run."""
+    """Token, cached user id and account name; all None until setup has run."""
     try:
         with open(_PATH, "rb") as file:
             blob = file.read()
@@ -64,12 +65,12 @@ def load():
         return _adopt_legacy()
 
     stored = json.loads(_crypt(ctypes.windll.crypt32.CryptUnprotectData, blob))
-    return stored.get("token"), stored.get("user_id")
+    return stored.get("token"), stored.get("user_id"), stored.get("name")
 
 
-def save(token, user_id=None):
+def save(token, user_id=None, name=None):
     os.makedirs(_DIR, exist_ok=True)
-    payload = json.dumps({"token": token, "user_id": user_id}).encode()
+    payload = json.dumps({"token": token, "user_id": user_id, "name": name}).encode()
     blob = _crypt(ctypes.windll.crypt32.CryptProtectData, payload)
 
     with open(_PATH, "wb") as file:

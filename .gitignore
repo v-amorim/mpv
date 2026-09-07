@@ -15,3 +15,6 @@ portable_config/scripts/uosc/
 
 # Python bytecode
 __pycache__/
+
+# Vendored python packages, recreated by `just setup`
+vendor/

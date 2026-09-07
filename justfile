@@ -12,3 +12,11 @@ patch:
 # Say what the patches would do, without writing anything
 patch-check:
     python patches/apply.py --check
+
+# Install the python packages the AniList scripts import, into a local vendor dir
+setup:
+    uv pip install --target portable_config/scripts/anilistUpdater/vendor -r portable_config/scripts/anilistUpdater/requirements.txt
+
+# Check that those packages are importable the way mpv will import them
+setup-check:
+    python portable_config/scripts/anilistUpdater/anilistUpdater.py --deps
