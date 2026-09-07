@@ -23,7 +23,14 @@ local chapterSkippingEnabled = true
 
 function toggleCheckChapter()
 	chapterSkippingEnabled = not chapterSkippingEnabled
-	mp.osd_message("Chapter skipping " .. (chapterSkippingEnabled and "enabled" or "disabled"))
+	mp.commandv(
+		"script-message-to",
+		"osd_theme",
+		"say",
+		"Chapter skipping",
+		chapterSkippingEnabled and "yes" or "no",
+		"jumps past chapters named as openings, endings, credits or previews"
+	)
 end
 
 function check_chapter(_, chapter)
@@ -36,7 +43,7 @@ function check_chapter(_, chapter)
 
 	for _, p in pairs(opt.patterns) do
 		if string.find(title, p) then
-			mp.command('show-text "Skipping chapter: ' .. chapter .. '"')
+			mp.commandv("script-message-to", "osd_theme", "say", "Skipping chapter", chapter, "matched the skip list")
 			mp.command("no-osd add chapter 1")
 			return
 		end

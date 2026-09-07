@@ -29,9 +29,21 @@ function recordPreviousFile()
 	previousFilePath = mp.get_property("path")
 end
 
+local function pending()
+	if not fileMovingEnabled then
+		return "the files you finish stay where they are"
+	end
+	if not previousFilePath then
+		return "the file you finish moves into the " .. subfolder .. " folder when the next one starts"
+	end
+	local _, name = utils.split_path(previousFilePath)
+	return name .. " moves into the " .. subfolder .. " folder when the next file starts"
+end
+
 function toggleFileMoving()
 	fileMovingEnabled = not fileMovingEnabled
-	mp.osd_message("File moving " .. (fileMovingEnabled and "enabled" or "disabled"))
+	local state = fileMovingEnabled and "yes" or "no"
+	mp.commandv("script-message-to", "osd_theme", "say", "File moving", state, pending())
 end
 
 mp.register_event("start-file", movePreviousFile)

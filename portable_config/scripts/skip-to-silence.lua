@@ -118,7 +118,14 @@ end
 
 function skippedMessage()
 	msg.info("Skipped to silence at " .. mp.get_property_osd("time-pos"))
-	mp.osd_message("Skipped to silence at " .. mp.get_property_osd("time-pos"))
+	mp.commandv(
+		"script-message-to",
+		"osd_theme",
+		"say",
+		"Skipped to silence",
+		mp.get_property_osd("time-pos"),
+		"the next quiet gap, usually where the opening ends"
+	)
 end
 
 options.read_options(opts)
