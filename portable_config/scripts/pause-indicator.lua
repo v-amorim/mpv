@@ -9,7 +9,7 @@
     derived from the current OSD, so it stays symmetric and matches the rest of
     the interface.
 
-    Source: https://github.com/v-amorim/mpv
+    Source: https://github.com/v-amorim/moonlight-mpv
 ]]
 --
 

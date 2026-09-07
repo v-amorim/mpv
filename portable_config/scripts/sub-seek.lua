@@ -1,5 +1,5 @@
 -- sub-seek.lua
--- Source: https://github.com/v-amorim/mpv
+-- Source: https://github.com/v-amorim/moonlight-mpv
 --
 -- Fullscreen, clickable list of every subtitle line (with timestamps).
 -- Click a line (or select with Up/Down + Enter) to seek to it; the list closes.

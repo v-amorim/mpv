@@ -1,5 +1,5 @@
 -- reset-all.lua
--- Source: https://github.com/v-amorim/mpv
+-- Source: https://github.com/v-amorim/moonlight-mpv
 --
 -- Puts playback back to a fresh-start state without reloading the file:
 -- zoom, pan, aspect, rotation, panscan, speed, delays, subtitle placement and

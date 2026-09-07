@@ -4,7 +4,7 @@
     This script is made to restart the mpv instance, meant to refresh any changes made to the configuration file.
 	Use `F5` key to restart the player.
 
-    Source: https://github.com/v-amorim/self-development/blob/main/config/mpv64/portable_config/scripts/restart-mpv.lua
+    Source: https://github.com/v-amorim/moonlight-mpv/blob/main/portable_config/scripts/restart-mpv.lua
 ]]
 --
 

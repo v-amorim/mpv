@@ -1,5 +1,5 @@
 -- sub-select-menu.lua
--- Source: https://github.com/v-amorim/mpv
+-- Source: https://github.com/v-amorim/moonlight-mpv
 --
 -- sub-select.lua picks a subtitle track from the rules in sub-select.json and
 -- says nothing about it: which rule won, or whether it ran at all. This draws

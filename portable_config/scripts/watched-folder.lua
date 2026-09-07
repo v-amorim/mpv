@@ -4,7 +4,7 @@
     This script automatically moves the previously played file to a subfolder named "watched" upon loading a new file.
 	Use `F10` key to toggle automatic file moving on/off with an OSD message.
 
-    Source: https://github.com/v-amorim/self-development/blob/main/config/mpv64/portable_config/scripts/watched-folder.lua
+    Source: https://github.com/v-amorim/moonlight-mpv/blob/main/portable_config/scripts/watched-folder.lua
 ]]
 --
 

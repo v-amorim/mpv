@@ -1,5 +1,5 @@
 -- sub-font.lua
--- Source: https://github.com/v-amorim/mpv
+-- Source: https://github.com/v-amorim/moonlight-mpv
 --
 -- One font choice, whatever the subtitle file is.
 --

@@ -1,5 +1,5 @@
 -- uosc-menu.lua
--- Source: https://github.com/v-amorim/mpv
+-- Source: https://github.com/v-amorim/moonlight-mpv
 --
 -- uosc builds its main menu from the "#!" comments in input.conf, but gives its
 -- items no icons and nothing to say about themselves. This reads the same

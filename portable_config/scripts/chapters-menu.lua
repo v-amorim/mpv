@@ -1,5 +1,5 @@
 -- chapters-menu.lua
--- Source: https://github.com/v-amorim/mpv
+-- Source: https://github.com/v-amorim/moonlight-mpv
 --
 -- A uosc front end for chapters.lua, which ships eleven bindings and no way to
 -- see what any of them would do.
