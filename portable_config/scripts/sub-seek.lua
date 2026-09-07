@@ -54,9 +54,9 @@ for name, rgb in pairs({
 	dim = "aea4bf", -- #aea4bf  dimmed text (line count + footer hint)
 	time = "5dabf3", -- #5dabf3  timestamp column
 	cur = "7386d0", -- #7386d0  current line (under the playhead)
-	sel_bg = "2d3654", -- #2d3654  selected row background
-	hover_bg = "282e46", -- #282e46  hovered row background
-	scroll_trk = "282e46", -- #282e46  scrollbar track
+	sel_bg = "303751", -- #303751  selected row background
+	hover_bg = "272d44", -- #272d44  hovered row background
+	scroll_trk = "272d44", -- #272d44  scrollbar track
 	scroll_thb = "5dabf3", -- #5dabf3  scrollbar thumb
 	match = "a9c0ff", -- #a9c0ff  the typed words, picked out inside a row
 }) do

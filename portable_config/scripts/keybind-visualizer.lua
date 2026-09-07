@@ -207,7 +207,7 @@ local C = {}
 for name, rgb in pairs({
 	dim = "0d0e17", -- #0d0e17  full-screen dim behind the keyboard
 	key_bg = "191726", -- #191726  unbound key fill
-	key_brd = "2d3654", -- #2d3654  unbound key border
+	key_brd = "303751", -- #303751  unbound key border
 	bind_bg = "1f2335", -- #1f2335  bound key fill
 	bind_brd = "3c466f", -- #3c466f  bound key border
 	hover_bg = "3c466f", -- #3c466f  hovered key fill
