@@ -212,7 +212,9 @@ One shape for every message a keybind puts on screen, so `sub-ass-override force
 | -------------------------------------- | -------------------------------------------------------- |
 | ![Themed OSD message][shot_osd_theme]  | ![Busy message][shot_osd_busy]                           |
 
-A second message, `busy`, stays on screen instead of fading, for work slow enough that a message which disappeared would read as nothing happening. It turns the `autorenew` glyph from the icon font uosc already ships, so a wait here spins exactly what a uosc menu spins, and a later `say` both replaces the text and stops the spinner. Repeated calls only swap the words, so progress can climb without the icon stuttering.
+Scripts call the same message rather than `mp.osd_message`, so `F4`, `ALT+F5`, `F8` and the menu all speak in this shape too: `mp.commandv("script-message-to", "osd_theme", "say", label, state, detail)`.
+
+A second message, `busy`, stays on screen instead of fading, for work slow enough that a message which disappeared would read as nothing happening. It turns the `autorenew` glyph from the icon font uosc already ships, so a wait here spins exactly what a uosc menu spins, and a later `say` both replaces the text and stops the spinner. Repeated calls only swap the words, so progress can climb without the icon stuttering. A third, `clear`, takes the message away without printing another, for a script like `sub-seek.lua` that spins while it works and then draws its own full screen list over the same corner.
 
 Colours are the blues and greys of the [Moonlight palette][moonlight] my shell prompt uses, held at the top of the file, so retinting everything is one edit there. Outline and shadow take the palette's background rather than black. Bindings prefix the mutating command with `no-osd` so mpv's own readout does not double up, and prefix the message with `expand-properties` when the state comes from a property.
 

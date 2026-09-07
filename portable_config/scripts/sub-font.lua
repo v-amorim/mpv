@@ -48,5 +48,12 @@ end)
 -- name no font of their own, and picking a font again re-arms the mirror.
 mp.register_script_message("use-file-font", function()
 	set_font_override(nil)
-	mp.osd_message("Subtitle font: as the file asks")
+	mp.commandv(
+		"script-message-to",
+		"osd_theme",
+		"say",
+		"Subtitle font",
+		"as the file asks",
+		"drops the override, so an ASS script uses the typeface it names"
+	)
 end)

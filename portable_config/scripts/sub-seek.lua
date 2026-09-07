@@ -31,6 +31,20 @@ local function to_ass(rgb)
 	return rgb:sub(5, 6) .. rgb:sub(3, 4) .. rgb:sub(1, 2)
 end
 
+local function say(state, detail)
+	mp.commandv("script-message-to", "osd_theme", "say", "Subtitle index", state, detail)
+end
+
+-- the extract runs long enough that a message which faded would read as nothing
+-- happening, and the list draws over the spot, so it is cleared rather than replaced
+local function busy(detail)
+	mp.commandv("script-message-to", "osd_theme", "busy", "Subtitle index", detail)
+end
+
+local function clear_osd()
+	mp.commandv("script-message-to", "osd_theme", "clear")
+end
+
 local C = {}
 for name, rgb in pairs({
 	bg = "0d0e17", -- #0d0e17  full-screen dim behind the list
@@ -216,7 +230,7 @@ end
 local function load_subs(done)
 	local track = selected_sub_track()
 	if not track then
-		mp.osd_message("sub-seek: no subtitle selected", 2)
+		say("no track selected", "pick a subtitle track first, with CTRL+s")
 		return
 	end
 
@@ -227,7 +241,7 @@ local function load_subs(done)
 	else
 		local video = video_path()
 		if not track.ff_index then
-			mp.osd_message("sub-seek: cannot locate subtitle stream", 2)
+			say("track not found", "mpv reported no ffmpeg index for the selected track")
 			return
 		end
 		args = {
@@ -245,22 +259,22 @@ local function load_subs(done)
 	end
 
 	loading = true
-	mp.osd_message("sub-seek: loading subtitles...", 30)
+	busy("reading the track with ffmpeg")
 	mp.command_native_async(
 		{ name = "subprocess", playback_only = false, capture_stdout = true, args = args },
 		function(success, res)
 			loading = false
 			if not (success and res and res.status == 0) then
-				mp.osd_message("sub-seek: ffmpeg failed to read subtitles", 3)
+				say("failed", "ffmpeg would not read the track, so it is probably neither ASS nor SRT")
 				return
 			end
 			local data = read_file(out)
 			local parsed = data and parse_srt(data) or {}
 			if #parsed == 0 then
-				mp.osd_message("sub-seek: no lines found in subtitle", 3)
+				say("empty", "the track carried no timed lines")
 				return
 			end
-			mp.osd_message("", 0)
+			clear_osd()
 			done(parsed)
 		end
 	)

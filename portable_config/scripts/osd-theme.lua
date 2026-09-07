@@ -67,6 +67,14 @@ mp.register_script_message('say', function(label, state, detail)
     end)
 end)
 
+-- For a script that spins through `busy` and then draws its own full screen
+-- interface: there is nothing left to report, and a `say` would sit on top of it.
+mp.register_script_message('clear', function()
+    stop_spinning()
+    if hide_timer then hide_timer:kill() end
+    overlay:remove()
+end)
+
 -- Stays on screen until a `say` replaces it, for work that takes long enough
 -- that a message which faded would look like nothing is happening.
 local busy_label, busy_detail, busy_angle = '', nil, 0

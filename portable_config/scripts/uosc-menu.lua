@@ -330,7 +330,14 @@ end
 local function open(submenu, at_cursor)
 	items = items or build_items()
 	if #items == 0 then
-		mp.osd_message("No menu entries in input.conf")
+		mp.commandv(
+			"script-message-to",
+			"osd_theme",
+			"say",
+			"Menu",
+			"empty",
+			"input.conf carries no #! comments to build a menu from"
+		)
 		return
 	end
 	refresh_state()

@@ -38,5 +38,12 @@ mp.add_key_binding(nil, "reset-all", function()
 		mp.set_property_native(prop, value)
 	end
 	mp.commandv("change-list", "glsl-shaders", "clr", "")
-	mp.osd_message("Reset: zoom | pan | aspect | speed | delays | subs | colors")
+	mp.commandv(
+		"script-message-to",
+		"osd_theme",
+		"say",
+		"Reset",
+		"playback",
+		"zoom, pan, aspect, rotation, speed, delays, subtitles, colour and shaders"
+	)
 end)
