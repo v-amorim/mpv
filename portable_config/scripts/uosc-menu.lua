@@ -38,9 +38,71 @@ end
 
 local TOOLTIP_MAX = 130
 
+-- prefixes that say how a command reports itself, not what it does
+local CMD_PREFIXES = {
+	["no-osd"] = true,
+	["osd-auto"] = true,
+	["osd-bar"] = true,
+	["osd-msg"] = true,
+	["osd-msg-bar"] = true,
+	["expand-properties"] = true,
+	["raw"] = true,
+	["async"] = true,
+	["sync"] = true,
+}
+
+-- split on ";" while leaving the separators inside quoted arguments alone, which
+-- a shader list ("a.glsl;b.glsl") depends on
+local function split_commands(cmd)
+	local parts, buf, quote = {}, {}, nil
+	for i = 1, #cmd do
+		local c = cmd:sub(i, i)
+		if quote then
+			if c == quote then
+				quote = nil
+			end
+			buf[#buf + 1] = c
+		elseif c == '"' or c == "'" then
+			quote = c
+			buf[#buf + 1] = c
+		elseif c == ";" then
+			parts[#parts + 1] = table.concat(buf)
+			buf = {}
+		else
+			buf[#buf + 1] = c
+		end
+	end
+	parts[#parts + 1] = table.concat(buf)
+	return parts
+end
+
+-- the action itself: reporting prefixes and the osd-theme message would otherwise
+-- fill the tooltip and push the real command past the cut
+local function short_cmd(cmd)
+	local kept = {}
+	for _, part in ipairs(split_commands(cmd or "")) do
+		part = trim(part)
+		local head, rest = part:match("^(%S+)%s+(.+)$")
+		while head and CMD_PREFIXES[head] do
+			part = rest
+			head, rest = part:match("^(%S+)%s+(.+)$")
+		end
+		if part ~= "" and not part:match("^script%-message%-to%s+osd_theme") then
+			kept[#kept + 1] = (part:gsub("%s+", " "))
+		end
+	end
+	if #kept == 0 then
+		return trim((cmd or ""):gsub("%s+", " "))
+	end
+	if #kept == 1 then
+		return kept[1]
+	end
+	return string.format("%s (+%d)", kept[1], #kept - 1)
+end
+
 -- what an entry does and the command behind it, shown under the menu on hover
 local function tooltip_for(description, cmd)
-	local text = cmd:gsub("%s+", " ")
+	local text = short_cmd(cmd)
 	if description then
 		text = description .. "  \xC2\xB7  " .. text
 	end
