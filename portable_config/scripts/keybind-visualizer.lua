@@ -366,8 +366,9 @@ local function binding_desc(b)
 	if menu then
 		-- a menu line describes itself after "?"; the rest is a path plus the
 		-- "@icon" tokens that belong to uosc-menu.lua, neither of which says what
-		-- the binding does
-		local described = menu:match("%?%s*(.+)$")
+		-- the binding does. Parents carry descriptions of their own, so the entry's
+		-- is the one after the last "?", not the first.
+		local described = menu:match(".*%?%s*(.+)$")
 		t = described or (b.cmd .. "  \xC2\xB7  " .. menu:gsub("%s+@[%w_]+", ""))
 	else
 		t = t:gsub("^#%s*", "")
@@ -537,8 +538,8 @@ local function split_words(low)
 	end
 end
 
--- token as a gapped run inside one word: "sbdly" finds "sub-delay", but the run
--- may not wander past the word's end
+-- token as a gapped run inside one word: "dlay" finds "delay", but the run may
+-- not wander past the word's end, so "sbdly" never reaches "sub-delay"
 local function subseq_in_word(low, ws, we, tok)
 	local pos, positions, gaps = ws, {}, 0
 	for i = 1, #tok do
