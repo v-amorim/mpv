@@ -56,6 +56,12 @@ It asks first where the config should live:
 
 `here` is the one to pick if you plan to keep editing the config: `portable_config/` is already beside the executable, so there is nothing to copy and `just patch` lands on the uosc that mpv actually loads. The mpv payload in the repo root is gitignored.
 
+Nothing is downloaded or written while it asks. The last stage is a receipt of every answer and every action queued, and only a yes there runs them.
+
+| Start                          | The first question                     | The receipt, before anything runs  |
+| ------------------------------ | -------------------------------------- | ---------------------------------- |
+| ![Banner][shot_first_run_banner] | ![Install mode][shot_first_run_install] | ![Receipt][shot_first_run_receipt] |
+
 ### What has to be on the machine
 
 | Tool         | Needed for                                                             | Without it                                        |
@@ -357,6 +363,9 @@ Shaders, [Anime4K][Anime4k] among them, are too large to commit; [`shaders_list.
 [shot_interface]: assets/uosc-chrome.png
 [shot_conf_keys]: assets/input-conf-keys.png
 [shot_conf_menu]: assets/input-conf-menu.png
+[shot_first_run_banner]: assets/first-run-banner.png
+[shot_first_run_install]: assets/first-run-install.png
+[shot_first_run_receipt]: assets/first-run-receipt.png
 [patches_dir]: ./patches
 [keybind_visualizer]: ./portable_config/scripts/keybind-visualizer.lua
 [keybind_visualizer_conf]: ./portable_config/script-opts/keybind-visualizer.conf

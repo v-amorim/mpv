@@ -218,6 +218,8 @@ def open_url(url: str) -> None:
 
 def pause(message: str = "Press Enter to continue") -> None:
     """Wait for the human to confirm they've done the manual part."""
+    global _prompted
+    _prompted = True
     try:
         input(f"  {MUTED}{message}{RESET} ")
     except EOFError:
@@ -230,6 +232,8 @@ def confirm(question: str, *, back: bool = False) -> bool:
     With back=True, answering `b` raises Back instead, so a stage that opens
     with a confirmation can be stepped out of the same way a choose can.
     """
+    global _prompted
+    _prompted = True
     keys = "y/N, b to go back" if back else "y/N"
     try:
         reply = input(f"  {ACCENT}? {question} [{keys}]{RESET} ")
@@ -332,6 +336,8 @@ def choose(prompt: str, options: list[tuple[str, str]], *, back: bool = False) -
     straight to a row. With back=True, Left or `b` raises Back, which run_stages
     turns into a step backwards.
     """
+    global _prompted
+    _prompted = True
     if not (_ANSI and sys.stdin.isatty()):
         value = _choose_typed(prompt, options, back)
         _remember(prompt, value)
@@ -388,22 +394,77 @@ def choose(prompt: str, options: list[tuple[str, str]], *, back: bool = False) -
     return value
 
 
+_planned: list[tuple[int, str, callable]] = []  # stage, receipt line, action
+_approved = False
+_prompted = False  # did the running stage ask the human anything
+
+
+def plan(line: str, action: callable) -> None:
+    """Queue a side effect for after the receipt, instead of doing it now.
+
+    Stages only ask and look; every download, write and copy goes through here,
+    so the human sees the whole list and says yes once before anything changes.
+    `line` is exactly what the receipt prints for it.
+    """
+    _planned.append((_stage_index, line, action))
+
+
+def receipt() -> None:
+    """The last stage: every answer and every queued action, one confirmation."""
+    global _approved
+    stage("Receipt")
+    if not _planned:
+        say("Nothing to do: everything is already in place.")
+        _approved = False
+        return
+
+    say("About to:")
+    for _, line, _ in _planned:
+        print(f"  {ACCENT}{BULLET}{RESET} {line}")
+    print()
+    note("Nothing has been downloaded, written or copied yet.")
+    _approved = confirm("Do all of the above?", back=True)
+
+
+def apply() -> None:
+    """Run the queued actions in order. A failure is reported and the rest go on."""
+    _clear()
+    print(f"\n{BOLD}{ACCENT}{STAGE_MARK} Applying{RESET}\n")
+    for _, line, action in _planned:
+        print(f"  {ACCENT}{ARROW}{RESET} {line}")
+        try:
+            action()
+        except Exception as error:  # noqa: BLE001  one failure must not stop the rest
+            warn(f"failed: {error}")
+            _skipped.append(line)
+        print()
+
+
 def run_stages(stages: list[callable]) -> None:
     """Run the stages in order, letting a Back signal re-open the one before.
 
-    There is no undo: a stage that already downloaded or copied something has
-    done it. Going back re-runs that stage, which is why every one of them
-    checks what is already on disk before acting.
+    Back lands on the nearest earlier stage that actually asked something: one
+    that only looked at the disk would run straight through and bounce the human
+    forward again. Re-entering a stage drops what it and every later stage had
+    planned, so a changed answer cannot leave a stale action in the receipt.
     """
-    global _stage_index
+    global _stage_index, _prompted
+    asked = [False] * len(stages)
     index = 0
     while index < len(stages):
         _stage_index = index  # so a step back renumbers instead of counting on
+        # plans carry the 1-based number stage() assigns, so this keeps earlier stages only
+        _planned[:] = [entry for entry in _planned if entry[0] <= index]
+        _prompted = False
         try:
             stages[index]()
         except Back:
-            index = max(index - 1, 0)
+            target = index - 1
+            while target > 0 and not asked[target]:
+                target -= 1
+            index = max(target, 0)
             continue
+        asked[index] = _prompted
         index += 1
 
 
@@ -524,6 +585,8 @@ def _read_masked(label: str) -> str:
 
 
 def _prompt(prompt: str, current: str, hidden: bool) -> str:
+    global _prompted
+    _prompted = True
     suffix = f" {MUTED}[Enter keeps current]{RESET}" if current else ""
     label = f"  {BOLD}{prompt}{RESET}{suffix} "
     try:
@@ -736,7 +799,7 @@ MPV_BUILDS = (
 
 # What one stage worked out and a later one needs. A plain module dict rather
 # than arguments, since run_stages can re-enter any stage on its own.
-FOUND: dict[str, Path | None] = {"mpv": None, "home": None, "installed": None}
+FOUND: dict[str, Path | str | bool | None] = {"mpv": None, "home": None, "installed": None}
 
 LAYOUTS = [
     ("ansi", "US and most of the world, single-row Enter"),
@@ -762,6 +825,7 @@ def have(exe: str) -> str:
 
 
 def run_cmd(args: list[str], cwd: Path | None = None) -> bool:
+    sys.stdout.flush()  # or the child's output lands ahead of ours in a pipe
     try:
         done = subprocess.run(args, cwd=str(cwd) if cwd else None, check=False)
     except OSError as error:
@@ -833,28 +897,6 @@ def latest_release(repo: str) -> tuple[str, list[tuple[str, str]]]:
 
 def latest_assets(repo: str) -> list[tuple[str, str]]:
     return latest_release(repo)[1]
-
-
-def fetch_zip(repo: str, hint: str) -> Path | None:
-    """Download the latest release's zip to a temp file the caller deletes.
-
-    It lands outside the config tree so a failed unpack cannot leave a stray
-    archive sitting among the scripts.
-    """
-    tag, assets = latest_release(repo)
-    zips = [
-        (name, url)
-        for name, url in assets
-        if name.lower().endswith(".zip") and hint.lower() in name.lower()
-    ]
-    if not zips:
-        warn(f"{repo}'s latest release carries no {hint} zip")
-        return None
-
-    name, url = zips[0]
-    say(f"{name} from github.com/{repo} {tag}".rstrip())
-    archive = Path(tempfile.mkdtemp(prefix="first-run-")) / name
-    return archive if download(url, archive) else None
 
 
 def pick_build(assets: list[tuple[str, str]]) -> tuple[str, str] | None:
@@ -1031,7 +1073,44 @@ def find_mpv() -> Path | None:
     return None
 
 
-# ── Stages ────────────────────────────────────────────────────────────────
+def current_layout() -> str:
+    if not LAYOUT_CONF.is_file():
+        return ""
+    for line in LAYOUT_CONF.read_text(encoding="utf-8").splitlines():
+        found = re.match(r"^\s*layout\s*=\s*(\S+)", line)
+        if found:
+            return found.group(1)
+    return ""
+
+
+def release_zip(repo: str, hint: str) -> tuple[str, str, str] | None:
+    """Tag, name and URL of the one zip on a repo's latest release, or None."""
+    tag, assets = latest_release(repo)
+    zips = [
+        (name, url)
+        for name, url in assets
+        if name.lower().endswith(".zip") and hint.lower() in name.lower()
+    ]
+    if not zips:
+        return None
+    return tag, zips[0][0], zips[0][1]
+
+
+def find_build() -> tuple[str, str, str] | None:
+    """Repo, asset name and URL of the build for this machine.
+
+    The sources are tried in the order mpv.io lists them, so a release that is
+    mid-upload or missing an architecture falls through to the next rather than
+    dead-ending the wizard.
+    """
+    for _, repo in MPV_BUILDS:
+        picked = pick_build(latest_assets(repo))
+        if picked:
+            return repo, picked[0], picked[1]
+    return None
+
+
+# ── Stages: each one looks and asks. Every change is a plan(), run after the receipt.
 
 
 def report_tools() -> None:
@@ -1049,15 +1128,15 @@ def report_tools() -> None:
     if not have("ffmpeg"):
         note(f"ffmpeg is the one that silently breaks features: {FFMPEG_PAGE}")
     if not have("uv"):
-        note(f"uv: {UV_PAGE}. Without it stage 6 falls back to pip.")
+        note(f"uv: {UV_PAGE}. Without it the AniList packages come through pip.")
 
 
 def stage_prerequisites() -> None:
-    """Work out the mpv to launch, and the folder the config gets installed into.
+    """Settle the mpv to launch and the folder the config gets installed into.
 
-    Those are the same folder for a normal install and deliberately different
-    for a portable one aimed at an empty directory, where an already installed
-    mpv can be pointed at the new config with --config-dir.
+    Those are one folder for a normal install and deliberately different for a
+    portable one aimed at an empty directory, where an already installed mpv is
+    pointed at the new config with --config-dir.
     """
     stage("Prerequisites and install location")
     say("Checking the tools the config and its scripts shell out to.")
@@ -1065,7 +1144,7 @@ def stage_prerequisites() -> None:
     report_tools()
     print()
 
-    say("Where the config gets installed, in stage 8.")
+    say("Where the config gets installed.")
     mode = choose(
         "Install",
         [
@@ -1074,65 +1153,57 @@ def stage_prerequisites() -> None:
             ("portable", "into a folder you name, touching nothing else"),
         ],
     )
-    if mode == "portable":
-        note("An empty folder here is also how you try the whole thing out.")
-
+    FOUND["mode"] = mode
     if mode == "here":
-        FOUND["mpv"], FOUND["home"] = locate_here()
+        locate_here()
     elif mode == "portable":
-        FOUND["mpv"], FOUND["home"] = locate_portable()
+        locate_portable()
     else:
-        FOUND["mpv"], FOUND["home"] = locate_system()
+        locate_system()
 
 
-def locate_here() -> tuple[Path | None, Path | None]:
-    """Mpv in the repo root, reading the portable_config already beside it.
-
-    Nothing is copied, so an edit to the config is live on the next launch and
-    `just patch` lands on the uosc mpv actually loads.
-    """
+def locate_here() -> None:
     print()
     say(f"mpv goes into {REPO}, next to the portable_config already there.")
-    note("Stage 8 then has nothing to copy, and repo edits take effect at once.")
+    note("Nothing gets copied, and repo edits take effect at once.")
+    FOUND["home"] = REPO
 
     inside = REPO / "mpv.exe"
     if inside.is_file():
         say(f"already there: {inside}")
-        return inside, REPO
-
-    fetched = fetch_mpv(REPO)
-    if fetched:
-        return fetched, REPO
-
-    warn("no mpv in the repo folder, so the config cannot be read from here")
-    note("Install one into it later, or re-run and pick system or portable.")
-    return None, REPO
+        FOUND["mpv"] = inside
+        return
+    if not plan_mpv_fetch(REPO):
+        warn("without an mpv in the repo folder the config cannot be read from here")
+        note("Re-run and pick system or portable, or drop an mpv build into the folder.")
 
 
-def locate_system() -> tuple[Path | None, Path | None]:
+def locate_system() -> None:
     mpv = find_mpv()
     if mpv:
         print()
         say(f"found mpv at {mpv}")
         if confirm("Use this one?"):
-            return mpv, mpv.parent
+            FOUND["mpv"], FOUND["home"] = mpv, mpv.parent
+            return
+    obtain_mpv()
 
-    mpv = obtain_mpv()
-    return mpv, (mpv.parent if mpv else None)
 
-
-def locate_portable() -> tuple[Path | None, Path | None]:
+def locate_portable() -> None:
     print()
     home = ask_path("MPV_HOME", "Folder to install into (created if missing):")
     if home is None:
         _skipped.append("everything downstream: no install folder given")
-        return None, None
-    home.mkdir(parents=True, exist_ok=True)
+        return
+    FOUND["home"] = home
+    if not home.exists():
+        plan(f"create {home}", lambda: home.mkdir(parents=True, exist_ok=True))
 
     inside = home / "mpv.exe"
     if inside.is_file():
         say(f"mpv is already in that folder: {inside}")
-        return inside, home
+        FOUND["mpv"] = inside
+        return
 
     print()
     say(f"{home} has no mpv.exe of its own.")
@@ -1144,19 +1215,17 @@ def locate_portable() -> tuple[Path | None, Path | None]:
         ],
     )
     if route == "fetch":
-        fetched = fetch_mpv(home)
-        if fetched:
-            return fetched, home
-        warn("nothing was fetched, falling back to borrowing one")
+        if plan_mpv_fetch(home):
+            return
+        warn("nothing to fetch, falling back to borrowing one")
 
-    borrowed = find_mpv() or obtain_mpv()
-    if borrowed:
-        note(f"stage 9 will launch {borrowed.name} with --config-dir pointing here.")
-    return borrowed, home
+    FOUND["mpv"] = find_mpv() or ask_existing_mpv()
+    if FOUND["mpv"]:
+        note(f"the launch at the end points {FOUND['mpv'].name} at this folder with --config-dir.")
 
 
-def obtain_mpv() -> Path | None:
-    """Walk the human to an mpv executable, wherever they want it from."""
+def obtain_mpv() -> None:
+    """No mpv was found: fetch one, be told where one is, or go and install it."""
     print()
     warn("mpv itself is not part of this repo, and could not be found.")
     note("On Windows mpv has no official binary: mpv.io calls every Windows")
@@ -1171,15 +1240,23 @@ def obtain_mpv() -> Path | None:
         ],
     )
 
+    if route == "fetch":
+        target = ask_path("MPV_HOME", "Folder to install mpv into:")
+        if target is not None and plan_mpv_fetch(target):
+            FOUND["home"] = target
+            return
+        warn("nothing to fetch, so point me at one instead")
+
     if route == "page":
         open_url(MPV_PAGE)
         pause("Install or extract mpv, then press Enter")
 
-    if route == "fetch":
-        fetched = fetch_mpv()
-        if fetched:
-            return fetched
+    mpv = ask_existing_mpv()
+    FOUND["mpv"] = mpv
+    FOUND["home"] = mpv.parent if mpv else None
 
+
+def ask_existing_mpv() -> Path | None:
     while True:
         given = ask_path("MPV_EXE", "Path to mpv.exe (or the folder holding it):")
         if given is None:
@@ -1191,49 +1268,26 @@ def obtain_mpv() -> Path | None:
         warn(f"no mpv executable at {candidate}")
 
 
-def find_build() -> tuple[str, str, str] | None:
-    """Repo, asset name and URL of the build for this machine.
-
-    The sources are tried in the order mpv.io lists them, so a release that is
-    mid-upload or missing an architecture falls through to the next rather than
-    dead-ending the wizard.
-    """
-    for _, repo in MPV_BUILDS:
-        picked = pick_build(latest_assets(repo))
-        if picked:
-            return repo, picked[0], picked[1]
-    return None
-
-
-def fetch_mpv(target: Path | None = None) -> Path | None:
-    """Download the right build for this machine. No asset picking by hand."""
+def plan_mpv_fetch(target: Path) -> bool:
+    """Resolve the build now, so the receipt can name it, and queue the download."""
     if os.name != "nt":
         warn("this only downloads Windows builds; elsewhere use your package manager")
         note("mpv is packaged for every major distribution and for Homebrew.")
-        return None
+        return False
 
     say(f"looking for a {ARCHES.get(platform.machine(), platform.machine())} build")
     found = find_build()
     if found is None:
         warn("no release currently carries a build for this machine")
-        open_url(MPV_PAGE)
-        pause("Install mpv yourself, then press Enter")
-        return None
+        return False
     repo, name, url = found
+    say(f"{name} from github.com/{repo}")
 
-    if target is None:
-        target = ask_path("MPV_HOME", "Folder to install mpv into:")
-    if target is None:
-        return None
+    def action() -> None:
+        FOUND["mpv"] = unpack_mpv(name, url, target)
 
-    print()
-    say(f"{name}")
-    note(f"from github.com/{repo}, the build mpv.io lists for Windows")
-    note(f"into {target}")
-    if not confirm("Download it?"):
-        return None
-
-    return unpack_mpv(name, url, target)
+    plan(f"download {name} into {target}", action)
+    return True
 
 
 def unpack_mpv(name: str, url: str, target: Path) -> Path | None:
@@ -1266,22 +1320,37 @@ def stage_uosc() -> None:
         if not confirm("Replace it with a fresh download?", back=True):
             return
 
-    archive = fetch_zip(UOSC_REPO, "uosc")
-    if archive is None:
-        install_uosc_by_hand()
-        return
+    found = release_zip(UOSC_REPO, "uosc")
+    if found is None:
+        warn("could not resolve the uosc release, so you will be asked for the zip")
+        plan("install uosc from a zip you download yourself", install_uosc_by_hand)
+    else:
+        tag, name, url = found
+        say(f"{name} from github.com/{UOSC_REPO} {tag}")
+        plan(f"download uosc {tag} into scripts/uosc/", lambda name=name, url=url: install_uosc(name, url))
+    FOUND["uosc_planned"] = True
 
+
+def install_uosc(name: str, url: str) -> None:
+    archive = Path(tempfile.mkdtemp(prefix="first-run-")) / name
     try:
-        if UOSC_DIR.exists():
-            shutil.rmtree(UOSC_DIR, ignore_errors=True)
-        UOSC_DIR.mkdir(parents=True, exist_ok=True)
-        if extract_subtree(archive, "scripts/uosc", UOSC_DIR):
-            print(f"  {GOOD}{OK_MARK} unpacked{RESET} uosc {TO} {UOSC_DIR}")
-            note("Its two fonts are skipped: this repo ships them in fonts/ already.")
-        else:
+        if not download(url, archive):
             _skipped.append(f"install uosc into {UOSC_DIR}")
+            return
+        unpack_uosc(archive)
     finally:
         shutil.rmtree(archive.parent, ignore_errors=True)
+
+
+def unpack_uosc(archive: Path) -> None:
+    if UOSC_DIR.exists():
+        shutil.rmtree(UOSC_DIR, ignore_errors=True)
+    UOSC_DIR.mkdir(parents=True, exist_ok=True)
+    if extract_subtree(archive, "scripts/uosc", UOSC_DIR):
+        print(f"  {GOOD}{OK_MARK} unpacked{RESET} uosc {TO} {UOSC_DIR}")
+        note("Its two fonts are skipped: this repo ships them in fonts/ already.")
+    else:
+        _skipped.append(f"install uosc into {UOSC_DIR}")
 
 
 def install_uosc_by_hand() -> None:
@@ -1293,14 +1362,7 @@ def install_uosc_by_hand() -> None:
         warn("no archive given, skipping")
         _skipped.append(f"install uosc into {UOSC_DIR}")
         return
-
-    if UOSC_DIR.exists():
-        shutil.rmtree(UOSC_DIR, ignore_errors=True)
-    UOSC_DIR.mkdir(parents=True, exist_ok=True)
-    if extract_subtree(archive, "scripts/uosc", UOSC_DIR):
-        print(f"  {GOOD}{OK_MARK} unpacked{RESET} uosc {TO} {UOSC_DIR}")
-    else:
-        _skipped.append(f"install uosc into {UOSC_DIR}")
+    unpack_uosc(archive)
 
 
 def stage_patch() -> None:
@@ -1309,26 +1371,31 @@ def stage_patch() -> None:
     say("patch pins the root where you clicked and cascades submenus rightwards.")
     print()
 
-    if not (UOSC_DIR / "main.lua").is_file():
-        warn("uosc is not installed, so there is nothing to patch")
+    installed = (UOSC_DIR / "main.lua").is_file()
+    if not installed and not FOUND.get("uosc_planned"):
+        warn("uosc is neither installed nor planned, so there is nothing to patch")
         _skipped.append("run `just patch` once uosc is installed")
         return
 
-    ok, lines = capture([sys.executable, str(APPLY_PATCH), "--check"])
-    for line in lines:
-        note(line)
-    if ok and any("already applied" in line for line in lines):
-        say("already applied, nothing to do")
-        return
+    if installed and not FOUND.get("uosc_planned"):
+        ok, lines = capture([sys.executable, str(APPLY_PATCH), "--check"])
+        if ok and any("already applied" in line for line in lines):
+            say("already applied, nothing to do")
+            return
 
-    if not run_cmd([sys.executable, str(APPLY_PATCH)]):
-        warn("the patch did not apply cleanly")
-        note("uosc moved the lines it anchors on. Open patches/uosc-cascade-menu.patch")
-        note("against the installed uosc and re-anchor the hunks.")
-        _skipped.append("reapply patches/uosc-cascade-menu.patch by hand")
+    say("applied once uosc is in place")
+    plan("apply the cascade menu patch to uosc", apply_patch)
+
+
+def apply_patch() -> None:
+    if run_cmd([sys.executable, str(APPLY_PATCH)]):
+        print(f"  {GOOD}{OK_MARK} patched{RESET} uosc")
+        note("uosc's own updater overwrites this. Run `just patch` after every update.")
         return
-    print(f"  {GOOD}{OK_MARK} patched{RESET} uosc")
-    note("uosc's own updater overwrites this. Run `just patch` after every update.")
+    warn("the patch did not apply cleanly")
+    note("uosc moved the lines it anchors on. Open patches/uosc-cascade-menu.patch")
+    note("against the installed uosc and re-anchor the hunks.")
+    _skipped.append("reapply patches/uosc-cascade-menu.patch by hand")
 
 
 def stage_shaders() -> None:
@@ -1339,36 +1406,35 @@ def stage_shaders() -> None:
 
     wanted = referenced_shaders()
     missing = sorted(name for name in wanted if not (SHADERS / name).is_file())
-
-    if any(name.startswith("Anime4K/") for name in missing):
-        install_anime4k()
-        missing = sorted(name for name in wanted if not (SHADERS / name).is_file())
-
-    print()
+    anime = [name for name in missing if name.startswith("Anime4K/")]
+    others = [name for name in missing if not name.startswith("Anime4K/")]
     say(f"{len(wanted) - len(missing)} of {len(wanted)} shaders this config loads are present")
-    if not missing:
-        return
 
-    warn("missing, so the bindings and profiles naming them will fail:")
-    for name in missing:
-        note(f"  {name}")
-    note("shaders_list.txt names every one I use. Those outside Anime4K come from")
-    note("scattered gists, with no release to pull them from.")
-    _skipped.append(f"{len(missing)} shader file(s) still missing under {SHADERS}")
+    if anime:
+        found = release_zip(ANIME4K_REPO, "anime4k")
+        if found is None:
+            warn("could not resolve the Anime4K release, so you will be asked for the zip")
+            plan("install Anime4K from a zip you download yourself", install_anime4k_by_hand)
+        else:
+            tag, name, url = found
+            say(f"{name} from github.com/{ANIME4K_REPO} {tag} covers {len(anime)} of the missing")
+            plan(f"download Anime4K {tag} into shaders/Anime4K/", lambda name=name, url=url: install_anime4k(name, url))
+
+    if others:
+        warn("in no release, so these stay missing:")
+        for shader in others:
+            note(f"  {shader}")
+        note("shaders_list.txt names every one I use; these come from scattered gists.")
+        _skipped.append(f"{len(others)} shader file(s) to fetch by hand under {SHADERS}")
 
 
-def install_anime4k() -> None:
-    archive = fetch_zip(ANIME4K_REPO, "anime4k")
-    if archive is None:
-        install_anime4k_by_hand()
-        return
-
+def install_anime4k(name: str, url: str) -> None:
+    archive = Path(tempfile.mkdtemp(prefix="first-run-")) / name
     try:
-        count = extract_pattern(archive, (".glsl", ".hook"), ANIME4K)
+        if download(url, archive):
+            report_shaders(extract_pattern(archive, (".glsl", ".hook"), ANIME4K))
     finally:
         shutil.rmtree(archive.parent, ignore_errors=True)
-    if count:
-        print(f"  {GOOD}{OK_MARK} unpacked{RESET} {count} shader(s) {TO} {ANIME4K}")
 
 
 def install_anime4k_by_hand() -> None:
@@ -1379,9 +1445,14 @@ def install_anime4k_by_hand() -> None:
     if archive is None or not archive.is_file():
         warn("no archive given")
         return
-    count = extract_pattern(archive, (".glsl", ".hook"), ANIME4K)
+    report_shaders(extract_pattern(archive, (".glsl", ".hook"), ANIME4K))
+
+
+def report_shaders(count: int) -> None:
     if count:
         print(f"  {GOOD}{OK_MARK} unpacked{RESET} {count} shader(s) {TO} {ANIME4K}")
+    else:
+        _skipped.append(f"Anime4K shaders into {ANIME4K}")
 
 
 def stage_layout() -> None:
@@ -1389,9 +1460,14 @@ def stage_layout() -> None:
     say("mpv cannot read the OS keyboard layout, so F6 draws whichever one this")
     say("file names. It ships set to abnt2, which is a Brazilian keyboard.")
     layout = choose("Your keyboard", LAYOUTS, back=True)
-    set_conf_option(LAYOUT_CONF, "layout", layout)
-    note("Add your own to script-opts/keybind-visualizer-layouts.json if none fits.")
-    note("This edits the repo's tracked copy, so it turns up in `git status`.")
+    if layout == current_layout():
+        say(f"already set to {layout}")
+        return
+    plan(
+        f"set layout={layout} in script-opts/keybind-visualizer.conf",
+        lambda: set_conf_option(LAYOUT_CONF, "layout", layout),
+    )
+    note("That edits the repo's tracked copy, so it turns up in `git status`.")
 
 
 def stage_anilist_deps() -> None:
@@ -1400,19 +1476,26 @@ def stage_anilist_deps() -> None:
     say("vendor/ folder, so they do not depend on whatever Lib sits beside mpv.")
     print()
 
+    ok, _ = capture([sys.executable, str(ANILIST_DIR / "anilistUpdater.py"), "--deps"])
+    if ok:
+        say("both already import from vendor/, nothing to do")
+        return
+
     if not confirm("Install them? (skip if you do not use AniList)", back=True):
         _skipped.append("AniList packages: run `just setup` later")
         return
 
+    tool = "uv" if have("uv") else "pip"
+    plan(f"install requests and guessit into vendor/ with {tool}", install_anilist_deps)
+    FOUND["deps_planned"] = True
+
+
+def install_anilist_deps() -> None:
     requirements = ANILIST_DIR / "requirements.txt"
     if have("uv"):
         command = ["uv", "pip", "install", "--target", str(VENDOR), "-r", str(requirements)]
     else:
-        warn("uv not found, falling back to pip")
-        command = [
-            sys.executable, "-m", "pip", "install",
-            "--target", str(VENDOR), "-r", str(requirements),
-        ]
+        command = [sys.executable, "-m", "pip", "install", "--target", str(VENDOR), "-r", str(requirements)]
 
     if not run_cmd(command, cwd=REPO):
         warn("the install failed")
@@ -1451,6 +1534,11 @@ def stage_anilist_token() -> None:
         _skipped.append("AniList token: press CTRL+n in mpv when you want it")
         return
 
+    note("Held in memory until the receipt is confirmed, and never shown.")
+    plan("link the AniList account with the token you pasted", lambda: link_anilist(token))
+
+
+def link_anilist(token: str) -> None:
     # Over stdin, never argv: the token must stay out of the process list.
     ok, lines = capture(
         [sys.executable, str(ANILIST_DIR / "anilistUpdater.py"), "--setup"],
@@ -1488,15 +1576,15 @@ def stage_install() -> None:
         FOUND["installed"] = dest
         return
 
-    say("Everything above happened in this repo, so now it gets copied across.")
+    say("Everything above lands in this repo first, then gets copied across.")
     say(f"from {CONFIG}")
     say(f"to   {dest}")
     if dest.exists():
         warn("that folder already exists; files with the same name get overwritten")
-    if not confirm("Copy now?", back=True):
-        _skipped.append(f"copy {CONFIG} {TO} {dest}")
-        return
+    plan(f"copy portable_config/ to {dest}", lambda: copy_config(dest))
 
+
+def copy_config(dest: Path) -> None:
     try:
         # A stale shader cache and this machine's log are no use to a new install.
         shutil.copytree(
@@ -1515,13 +1603,13 @@ def stage_install() -> None:
     FOUND["installed"] = dest
 
 
-def stage_verify() -> None:
-    stage("Verify")
+def verify() -> None:
+    """After everything is applied: how to tell it worked, and an offer to launch."""
     mpv, installed = FOUND["mpv"], FOUND["installed"]
     if mpv is None or installed is None:
-        warn("nothing was installed, so there is nothing to check")
         return
 
+    print(f"\n{BOLD}{ACCENT}{STAGE_MARK} Verify{RESET}\n")
     # An mpv from elsewhere ignores a portable_config it is not sitting next to.
     borrowed = mpv.parent != installed.parent
     command = [str(mpv), f"--config-dir={installed}"] if borrowed else [str(mpv)]
@@ -1537,7 +1625,7 @@ def stage_verify() -> None:
     print()
     note(f"mpv writes its log to {installed / 'mpv.log'} if something is missing.")
     print()
-    if confirm("Launch mpv now to try it?", back=True):
+    if confirm("Launch mpv now to try it?"):
         try:
             subprocess.Popen(command, cwd=str(mpv.parent))
         except OSError as error:
@@ -1556,11 +1644,17 @@ def main() -> None:
             stage_anilist_deps,
             stage_anilist_token,
             stage_install,
-            stage_verify,
+            receipt,
         ]
     )
+    if _approved:
+        apply()
+        verify()
+    else:
+        note("nothing was changed")
     finish()
 
 
 if __name__ == "__main__":
     run(main)
+
